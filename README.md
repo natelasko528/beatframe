@@ -25,7 +25,7 @@ Four presets ship as starting points. Every value in them is editable in the Loo
 - **Alphabet Hustler**: the A to Z look. Steel blue and champagne gold, giant gold-foil letters, A–Z ruler, dictionary opening, letter-mask reveals, alliteration highlighting, rain, colour-split drops.
 - **Neon Night Drive** and **Golden Testimony**: two more starting points.
 
-16:9 (YouTube) and 9:16 (Reels, TikTok, Shorts) are both supported; the layout adapts.
+16:9 (YouTube) and 9:16 (Reels, TikTok, Shorts) are both supported; the layout adapts. Videos are full-frame by default (no letterbox bars, so they fill a phone in landscape); the Letterbox slider in the Look step adds bars back if you want the cinematic crop. Exports default to 1080p, with 1440p and 2160p (4K: 3840x2160, or 2160x3840 for 9:16) one click away.
 
 ## Run it
 
@@ -47,7 +47,7 @@ npm run build && npx vite build -c vite.engine.config.ts
 node cli/beatframe.mjs render "My Song.beatframe.json" --audio song.mp3 --out video.mp4 --res 1080 --workers 3
 ```
 
-It uses the same renderer as the studio, drives headless Chromium, and encodes with ffmpeg (H.264 CRF 17 + AAC 320k). Set `CHROMIUM_PATH` if Playwright's browser isn't installed. `--from` / `--to` render a slice.
+It uses the same renderer as the studio, drives headless Chromium, and encodes with ffmpeg (H.264 CRF 17 + AAC 320k). Set `CHROMIUM_PATH` if Playwright's browser isn't installed. `--from` / `--to` render a slice. Use `--res 2160` for 4K (3840x2160 landscape, 2160x3840 for 9:16 projects); `--res 1440` for 2K.
 
 The studio is also scriptable in the browser: `window.BeatFrameApp` exposes the store, every pipeline action (`loadAudio`, `alignAuto`, `planVideo`, `generateAll`, …) and `exportVideo`.
 
