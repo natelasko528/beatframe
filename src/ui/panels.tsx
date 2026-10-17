@@ -79,6 +79,7 @@ export function WordsPanel({ seek, audio }: { seek: (t: number) => void; audio: 
 }
 
 // ---------------- Look ----------------
+const PRESET_MOOD: Record<string, string> = { summer: 'Golden summer', alphabet: 'After-dark luxury', neon: 'Neon night', gospel: 'Heavenly light' };
 export function LookPanel() {
   const st = useStore(s => s.project.style), meta = useStore(s => s.project.meta), update = useStore(s => s.update);
   const S = (fn: (s: Style) => void) => update(p => fn(p.style));
@@ -89,7 +90,7 @@ export function LookPanel() {
   return (
     <section className="panel">
       <h2>Look</h2>
-      <div className="presets">{Object.entries(PRESETS).map(([k, v]) => <button key={k} aria-pressed={st.name === v.name} onClick={() => update(p => { p.style = structuredClone(v); })}>{v.name}</button>)}</div>
+      <div className="presets">{Object.entries(PRESETS).map(([k, v]) => <button key={k} aria-pressed={st.name === v.name} onClick={() => { update(p => { p.style = structuredClone(v); }); useStore.getState().set({ mood: PRESET_MOOD[k] ?? useStore.getState().mood }); }}>{v.name}</button>)}</div>
       <h3>Colour</h3>
       <div className="swatches">{color('text', 'Text')}{color('accent', 'Accent')}{color('accent2', 'Second accent')}{color('hot', 'Hot words')}{color('sign', 'Signs')}{color('signAlt', 'Alt signs')}{color('bg', 'Cards')}</div>
       <h3>Type</h3>

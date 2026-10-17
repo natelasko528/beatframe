@@ -1,0 +1,15 @@
+import { chromium } from 'playwright-core'; import fs from 'node:fs';
+const S = '/tmp/claude-0/-home-claude/baa3f68c-b9c1-5e47-b667-5453a2736f3a/scratchpad';
+const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox'] });
+const pg = await b.newPage({ viewport: { width: 1600, height: 1000 } }); pg.on('pageerror', e => console.log('PAGEERROR', e.message));
+await pg.goto('http://127.0.0.1:4175/'); await pg.waitForSelector('.app');
+await pg.setInputFiles('.drop input[type=file]', '/home/claude/az/assets/track.wav');
+await pg.waitForFunction(() => !!window.BeatFrameApp.store.getState().project.analysis, null, { timeout: 120000 });
+await pg.evaluate(async (lyr) => { const { store, actions } = window.BeatFrameApp; store.getState().update(p => { p.lyricsRaw = lyr; p.meta.title = 'A to Z'; p.meta.artist = 'Tony Mack'; }); const a = store.getState().project.analysis; actions.alignSpread(a.beats[4], a.dur - 4); }, fs.readFileSync('/home/claude/az/assets/lyrics.txt', 'utf8'));
+await pg.click('.steps button:has-text("Cast")'); await pg.setInputFiles('.thumbs .add input >> nth=0', ['/home/claude/az/refs/ref1_shades.jpg', '/home/claude/az/refs/ref2.jpg', '/home/claude/az/refs/ref4.jpg']); await pg.waitForTimeout(800);
+await pg.click('.steps button:has-text("Look")'); await pg.click('.presets button:has-text("Alphabet Hustler")'); await pg.waitForTimeout(300); await pg.screenshot({ path: `${S}/ui_look.png` });
+await pg.click('.steps button:has-text("Scenes")'); await pg.click('button:has-text("Plan the edit")'); await pg.waitForSelector('ul.scenes li');
+const ups = pg.locator('ul.scenes li label.btn input[type=file]'); for (let i = 0; i < 3; i++) await ups.nth(i).setInputFiles(`/home/claude/az/gen/${['OPEN', 'H5', 'H2'][i]}.png`);
+await pg.waitForTimeout(800); await pg.screenshot({ path: `${S}/ui_scenes.png` });
+await pg.click('.steps button:has-text("Cast")'); await pg.waitForTimeout(300); await pg.screenshot({ path: `${S}/ui_cast.png` });
+await b.close();
