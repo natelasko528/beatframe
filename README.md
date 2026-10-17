@@ -25,7 +25,7 @@ Four presets ship as starting points. Every value in them is editable in the Loo
 - **Alphabet Hustler**: the A to Z look. Steel blue and champagne gold, giant gold-foil letters, A–Z ruler, dictionary opening, letter-mask reveals, alliteration highlighting, rain, colour-split drops.
 - **Neon Night Drive** and **Golden Testimony**: two more starting points.
 
-16:9 (YouTube) and 9:16 (Reels, TikTok, Shorts) are both supported; the layout adapts. Videos are full-frame by default (no letterbox bars, so they fill a phone in landscape); the Letterbox slider in the Look step adds bars back if you want the cinematic crop. Exports default to 1080p, with 1440p and 2160p (4K: 3840x2160, or 2160x3840 for 9:16) one click away.
+16:9 (YouTube) and 9:16 (Reels, TikTok, Shorts) are both supported; the layout adapts. Each preset keeps its cinematic letterbox bars; the Letterbox slider in the Look step adjusts or removes them. Exports default to 1080p, with 1440p and 2160p (4K: 3840x2160, or 2160x3840 for 9:16) one click away.
 
 ## Run it
 
