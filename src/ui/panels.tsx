@@ -237,7 +237,7 @@ export function ExportPanel() {
     <section className="panel">
       <h2>Export</h2>
       {missing > 0 && <p className="note">{missing} scenes have no image yet. Those shots render as dark plates.</p>}
-      <Field label="Resolution"><div className="seg">{([[1080, '1080p'], [1440, '1440p'], [2160, '2160p (4K)'], [720, '720p (small)']] as const).map(([r, l]) => <button key={r} aria-pressed={res === r} onClick={() => setRes(r)}>{l}</button>)}</div></Field>
+      <Field label="Resolution"><div className="seg">{([[480, '480p'], [720, '720p'], [1080, '1080p'], [1440, '1440p'], [2160, '4K']] as const).map(([r, l]) => <button key={r} aria-pressed={res === r} onClick={() => setRes(r)}>{l}</button>)}</div></Field>
       <Field label="Quality"><div className="seg"><button aria-pressed={q === 'high'} onClick={() => setQ('high')}>Smaller file</button><button aria-pressed={q === 'very-high'} onClick={() => setQ('very-high')}>Best</button></div></Field>
       {prog === null ? <button className="primary" disabled={!p.shots.length} onClick={go}>Export video ({W}×{H})</button>
         : <div className="progress"><div style={{ width: `${prog * 100}%` }} /><span>{Math.round(prog * 100)}%</span><button onClick={() => ac.current?.abort()}>Cancel</button></div>}

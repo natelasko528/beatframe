@@ -10,10 +10,11 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2); const cmd = args[0];
 const opt = (k, d) => { const i = args.indexOf(`--${k}`); return i >= 0 ? args[i + 1] : d; };
-if (cmd !== 'render' || !args[1]) { console.log('usage: beatframe render <project.beatframe.json> --audio <song> --out <video.mp4> [--res 1080] [--workers 2] [--crf 17] [--from 0 --to <sec>]'); process.exit(1); }
+if (cmd !== 'render' || !args[1]) { console.log('usage: beatframe render <project.beatframe.json> --audio <song> --out <video.mp4> [--res 480|720|1080|1440|2160] [--workers 2] [--crf 17] [--from 0 --to <sec>]'); process.exit(1); }
 
 const projectPath = path.resolve(args[1]), audio = opt('audio'), out = path.resolve(opt('out', 'video.mp4'));
-const res = +opt('res', 1080), workers = Math.max(1, +opt('workers', Math.max(1, Math.min(4, os.cpus().length - 1)))), crf = opt('crf', '17');
+const res = +opt('res', 1080); if (![480, 720, 1080, 1440, 2160].includes(res)) { console.error('--res must be 480, 720, 1080, 1440 or 2160 (4K)'); process.exit(1); }
+const workers = Math.max(1, +opt('workers', Math.max(1, Math.min(4, os.cpus().length - 1)))), crf = opt('crf', '17');
 const project = JSON.parse(fs.readFileSync(projectPath, 'utf8'));
 const vertical = project.height > project.width; const long = Math.round(res * 16 / 9 / 2) * 2;
 const W = vertical ? res : long, H = vertical ? long : res, fps = project.fps || 30;
