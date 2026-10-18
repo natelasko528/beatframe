@@ -52,6 +52,10 @@ export function analyze(samples: Float32Array, sr: number, onProgress?: (p: numb
   const flux = new Float64Array(frames), low = new Float64Array(frames), snr = new Float64Array(frames), rmsF = new Float64Array(frames);
   let prev = new Float64Array(bins);
   const re = new Float64Array(N), im = new Float64Array(N);
+  // song-character features (used to suggest mood/look without AI)
+  const chroma = new Float64Array(12); let centroidSum = 0, centroidW = 0;
+  const pc = new Int8Array(bins).fill(-1);
+  for (let k = 1; k < bins; k++) { const hz = k * binHz; if (hz >= 55 && hz <= 2000) pc[k] = ((Math.round(12 * Math.log2(hz / 440)) % 12) + 12 + 9) % 12; }
   for (let f = 0; f < frames; f++) {
     const o = f * hop; let e = 0;
     for (let i = 0; i < N; i++) { const v = samples[o + i] || 0; re[i] = v * win[i]; im[i] = 0; e += v * v; }
@@ -61,6 +65,7 @@ export function analyze(samples: Float32Array, sr: number, onProgress?: (p: numb
     for (let k = 1; k < bins; k++) {
       const m = Math.log1p(100 * Math.hypot(re[k], im[k]));
       mag[k] = m; const d = m - prev[k]; if (d > 0) fl += d;
+      if (f % 4 === 0) { const lin = Math.hypot(re[k], im[k]); centroidSum += lin * k * binHz; centroidW += lin; if (pc[k] >= 0) chroma[pc[k]] += lin * lin; }
       if (k >= l0 && k <= l1) lo += m; if (k >= s0 && k <= s1) sn += m;
     }
     flux[f] = fl; low[f] = lo; snr[f] = sn; prev = mag;
@@ -110,7 +115,19 @@ export function analyze(samples: Float32Array, sr: number, onProgress?: (p: numb
   const step = Math.max(1, Math.round(0.1 / hopT)), rms: number[] = []; let rmx = 1e-9;
   for (let i = 0; i < rmsF.length; i += step) { let s = 0; for (let j = i; j < Math.min(rmsF.length, i + step); j++) s = Math.max(s, rmsF[j]); rms.push(s); rmx = Math.max(rmx, s); }
   onProgress?.(1);
-  return { dur: +(samples.length / sr).toFixed(3), tempo: +tempo.toFixed(2), beats, kicks, snares, rms: rms.map(v => +(v / rmx).toFixed(3)), curveDt: step * hopT };
+  // key (Krumhansl-Schmuckler), brightness, energy, density, dynamics
+  const MAJ = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88], MIN = [6.33, 2.68, 3.52, 5.38, 2.6, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
+  const corr = (a: number[], b: number[]) => { const ma = a.reduce((x, y) => x + y) / 12, mb = b.reduce((x, y) => x + y) / 12; let n = 0, da = 0, db = 0; for (let i = 0; i < 12; i++) { n += (a[i] - ma) * (b[i] - mb); da += (a[i] - ma) ** 2; db += (b[i] - mb) ** 2; } return n / Math.sqrt(da * db + 1e-12); };
+  const ch = Array.from(chroma); let bestKey = 0, bestMode: 'major' | 'minor' = 'major', bk = -2;
+  for (let r = 0; r < 12; r++) for (const [prof, mode] of [[MAJ, 'major'], [MIN, 'minor']] as const) { const rot = prof.map((_, i) => prof[(i - r + 12) % 12]); const c = corr(ch, rot); if (c > bk) { bk = c; bestKey = r; bestMode = mode; } }
+  const NAMES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+  const rmsMean = rmsF.reduce((a, b) => a + b, 0) / rmsF.length;
+  const rn = rms.map(v => v / rmx), rMean = rn.reduce((a, b) => a + b, 0) / rn.length;
+  const dynamics = Math.sqrt(rn.reduce((a, v) => a + (v - rMean) ** 2, 0) / rn.length);
+  const dur = samples.length / sr;
+  const features = { energy: +Math.min(1, rmsMean / 0.25).toFixed(3), brightness: Math.round(centroidSum / (centroidW || 1)), density: +(kicks.length / dur + snares.length / dur).toFixed(2),
+    dynamics: +dynamics.toFixed(3), key: NAMES[bestKey], mode: bestMode, keyConfidence: +bk.toFixed(2) };
+  return { features, dur: +(samples.length / sr).toFixed(3), tempo: +tempo.toFixed(2), beats, kicks, snares, rms: rms.map(v => +(v / rmx).toFixed(3)), curveDt: step * hopT };
 }
 
 // Browser helper: decode any audio file and resample to mono 22.05 kHz for analysis.

@@ -61,3 +61,17 @@ export async function shrink(b: Blob, max = 1280): Promise<Blob> {
   const c = new OffscreenCanvas(Math.round(bmp.width * s), Math.round(bmp.height * s)); c.getContext('2d')!.drawImage(bmp, 0, 0, c.width, c.height);
   return c.convertToBlob({ type: 'image/jpeg', quality: 0.9 });
 }
+
+/** Rough cost per image in USD at 16:9 (for the estimate shown before generating). */
+export function pricePerImage(m: ImageModel): number {
+  if (m.provider === 'openai') return /mini/.test(m.model) ? { low: 0.006, medium: 0.016, high: 0.06 }[m.quality] : { low: 0.016, medium: 0.063, high: 0.25 }[m.quality];
+  if (m.provider === 'gemini') return /pro/.test(m.model) ? 0.134 : 0.039;
+  return /max/.test(m.model) ? 0.08 : 0.04;
+}
+/** Default image model from whichever keys the user added. */
+export function autoImageModel(keys: Partial<Record<string, string>>): ImageModel | null {
+  if (keys.openai) return { provider: 'openai', model: 'gpt-image-1', quality: 'medium' };
+  if (keys.gemini) return { provider: 'gemini', model: 'gemini-2.5-flash-image', quality: 'medium' };
+  if (keys.fal) return { provider: 'fal', model: 'fal-ai/flux-pro/kontext', quality: 'medium' };
+  return null;
+}

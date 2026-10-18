@@ -151,3 +151,30 @@ export function linesFromLRC(lrc: string, parsed: ParsedLine[], dur: number): Li
   for (const row of lrc.split(/\r?\n/)) { const m = row.match(/^\[(\d+):(\d+(?:\.\d+)?)\]\s*(.+)$/); if (m) taps.push(+m[1] * 60 + +m[2]); }
   return linesFromTaps(parsed, taps, dur);
 }
+
+/** No lyrics pasted: build lines straight from the transcript. Pauses split lines; lines that repeat become the hook. */
+export function linesFromTranscript(asr: AsrWord[], dur: number): Line[] {
+  const ws = asr.filter(w => w.w.trim());
+  const groups: AsrWord[][] = []; let cur: AsrWord[] = [];
+  for (let i = 0; i < ws.length; i++) {
+    const w = ws[i], prev = ws[i - 1];
+    const gap = prev ? w.s - prev.e : 0;
+    if (cur.length && (gap > 0.42 || cur.length >= 10 || (/[.!?]$/.test(prev.w.trim()) && cur.length >= 4))) { groups.push(cur); cur = []; }
+    cur.push(w);
+  }
+  if (cur.length) groups.push(cur);
+  const text = (g: AsrWord[]) => g.map(w => w.w.trim()).join(' ').replace(/\s+([,.!?])/g, '$1');
+  const key = (g: AsrWord[]) => g.map(w => norm(w.w)).join(' ');
+  const counts = new Map<string, number>(); groups.forEach(g => counts.set(key(g), (counts.get(key(g)) || 0) + 1));
+  let sec = 'Verse 1', verseN = 1, hookN = 0, lastEnd = 0, prevHook = false;
+  const lines: Line[] = groups.map((g, i) => {
+    const isHook = (counts.get(key(g)) || 0) >= 2 && g.length >= 3;
+    const bigGap = g[0].s - lastEnd > 2.5 && i > 0;
+    if (isHook && !prevHook) { hookN++; sec = `Hook${hookN}`; }
+    else if (!isHook && (prevHook || bigGap)) { verseN += prevHook ? 1 : 0; sec = `Verse ${verseN}`; }
+    prevHook = isHook; lastEnd = g[g.length - 1].e;
+    const t = text(g).replace(/^./, c => c.toUpperCase());
+    return { i, sec, text: t, start: 0, end: 0, next: 0, style: isHook ? 'hook' : 'verse', words: g.map(w => ({ d: w.w.trim(), s: +w.s.toFixed(3), e: +w.e.toFixed(3), m: true })) } as Line;
+  });
+  return finalizeLines(lines);
+}

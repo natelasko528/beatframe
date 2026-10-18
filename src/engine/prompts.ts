@@ -28,15 +28,25 @@ export function visualFor(text: string): string {
   return hits.length ? hits.join(', with ') : `a cinematic scene that captures the feeling of the lyric`;
 }
 
-export function buildPrompt(o: { lyric: string; mood: string; withAvatar: boolean; avatar: string; letterWord?: string; city?: string; composition?: string; extra?: string }): string {
-  const mood = MOODS[o.mood] ?? MOODS['Golden summer'];
+export function buildPrompt(o: { lyric: string; mood: string; withAvatar: boolean; avatar: string; letterWord?: string; city?: string; composition?: string; extra?: string; idea?: string }): string {
+  const mood = MOODS[o.mood] ?? { grade: `${o.mood} color grade`, light: '' };
   const id = o.withAvatar
     ? `The main character is the person in the reference photos. Preserve their exact facial identity, hairstyle and skin tone. ${o.avatar ? o.avatar + ' ' : ''}`
     : '';
-  const scene = o.letterWord
-    ? `A scene that visually embodies the word "${o.letterWord}": ${visualFor(o.letterWord + ' ' + o.lyric)}, inspired by the lyric "${o.lyric}".`
-    : `Scene: ${visualFor(o.lyric)}, inspired by the lyric "${o.lyric}".`;
+  const scene = o.idea
+    ? `Scene: ${o.idea.replace(/\.$/, '')}.${o.letterWord ? ` It embodies the word "${o.letterWord}".` : ''}`
+    : o.letterWord
+      ? `A scene that visually embodies the word "${o.letterWord}": ${visualFor(o.letterWord + ' ' + o.lyric)}, inspired by the lyric "${o.lyric}".`
+      : `Scene: ${visualFor(o.lyric)}, inspired by the lyric "${o.lyric}".`;
   return [id, mood.light, scene, o.extra || '',
     `Cinematic photoreal music video film still, wide 16:9, ${o.composition ?? 'subject placed on the right two-thirds leaving clean space on the left third for titles'}, 35mm anamorphic lens, shallow depth of field, natural skin texture, ${mood.grade}${o.city ? `, ${o.city}` : ''}.`,
     'No text, no letters, no captions, no logos, no watermarks.'].filter(Boolean).join(' ').replace(/\s+/g, ' ');
+}
+
+import type { Project, Scene } from './types';
+/** (Re)build a scene's full image prompt from its fields. Hand-written prompts are left alone. */
+export function promptForScene(p: Project, s: Scene): string {
+  if (s.custom) return s.prompt;
+  return buildPrompt({ lyric: s.lyric ?? '', letterWord: s.word, idea: s.idea, mood: p.mood ?? 'After-dark luxury', withAvatar: s.withAvatar,
+    avatar: p.avatar.description, city: p.brief?.city ? `${p.brief.city}` : '' });
 }

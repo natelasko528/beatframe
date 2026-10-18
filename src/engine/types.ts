@@ -13,7 +13,9 @@ export type Section = [name: string, start: number];
 export interface Analysis {
   dur: number; tempo: number; beats: number[]; kicks: number[]; snares: number[];
   rms: number[]; curveDt: number; // loudness curve sampled every curveDt seconds
+  features?: SongFeatures;
 }
+export interface SongFeatures { energy: number; brightness: number; density: number; dynamics: number; key: string; mode: 'major' | 'minor'; keyConfidence: number }
 
 export interface Shot {
   from: number; to: number; img: string;           // img = asset id ('' for cards)
@@ -28,6 +30,9 @@ export interface LetterCue { t: number; ch: string; word: string; end: number; k
 
 export interface Scene {
   id: string; prompt: string; withAvatar: boolean; refIds: string[];   // refIds: avatar/location asset ids
+  lyric?: string; word?: string;     // what the scene plays under (from the planner)
+  idea?: string;                     // short visual idea (creative director); expanded into prompt by code
+  custom?: boolean;                  // user wrote the full prompt by hand; never overwrite it
   status?: 'idle' | 'queued' | 'generating' | 'done' | 'error'; error?: string;
 }
 export interface Asset { id: string; name: string; kind: 'image' | 'avatar' | 'location' | 'cover'; url: string }
@@ -65,5 +70,7 @@ export interface Project {
   assets: Asset[];
   style: Style;
   avatar: { description: string; refIds: string[] };
-  plan: { mode: 'per-line' | 'alphabet' | 'beats'; beatsPerShot: number; coverId?: string };
+  plan: { mode: 'per-line' | 'alphabet' | 'beats'; beatsPerShot: number; coverId?: string; sceneBudget?: number };
+  brief?: import('./director').Brief;       // the suggestion set (what the UI offers as "Suggested")
+  mood?: string;
 }

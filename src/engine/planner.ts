@@ -74,7 +74,7 @@ export function planEdit(p: Project, mood: string, city = ''): { shots: Shot[]; 
   const scene = (key: string, lyric: string, letterWord?: string, withAvatar = true): string => {
     if (byKey[key]) return byKey[key];
     const id = `S${String(scenes.length + 1).padStart(2, '0')}`;
-    scenes.push({ id, withAvatar, refIds: [...p.avatar.refIds], status: 'idle',
+    scenes.push({ id, withAvatar, refIds: [...p.avatar.refIds], status: 'idle', lyric, word: letterWord,
       prompt: buildPrompt({ lyric, mood, withAvatar, avatar: p.avatar.description, letterWord, city }) });
     byKey[key] = id; return id;
   };
