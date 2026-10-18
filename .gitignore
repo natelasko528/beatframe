@@ -4,3 +4,4 @@ dist-engine
 .env
 .env.local
 scripts/*.beatframe.json
+*.tsbuildinfo
