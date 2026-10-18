@@ -8,6 +8,10 @@ import '@fontsource/bebas-neue/400.css';
 import '@fontsource/playfair-display/900.css';
 import '@fontsource/playfair-display/900-italic.css';
 import '@fontsource/dm-mono/500.css';
+import '@fontsource/montserrat/800.css';
+import '@fontsource/caveat/700.css';
+import '@fontsource/cinzel/700.css';
+import '@fontsource/space-grotesk/700.css';
 import './styles.css';
 import { App } from './ui/App';
 import { useStore } from './store';
@@ -18,5 +22,6 @@ import { exportVideo } from './engine/export';
 (window as any).BeatFrameApp = { store: useStore, actions, exportVideo };
 
 // Make sure the engine fonts are ready before the first frame is drawn.
-const faces = ['400 40px Anton', '400 40px "Permanent Marker"', '600 40px Oswald', '400 40px Oswald', '400 40px "Bebas Neue"', '900 40px "Playfair Display"', 'italic 900 40px "Playfair Display"', '500 40px "DM Mono"'];
+import { FONT_WEIGHT } from './engine/styles';
+const faces = [...Object.entries(FONT_WEIGHT).map(([f, w]) => `${w} 40px "${f}"`), 'italic 900 40px "Playfair Display"'];
 Promise.all(faces.map(f => document.fonts.load(f))).finally(() => createRoot(document.getElementById('root')!).render(<App />));

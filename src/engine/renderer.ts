@@ -1,6 +1,7 @@
 // BeatFrame unified renderer. Deterministic: renderAt(t) always draws the same frame for the same project,
 // so preview, browser export and headless CLI render are identical. Canvas 2D only, no WebGL required.
 import type { Project, Shot, Line, LetterCue } from './types';
+import { FONT_WEIGHT } from './styles';
 
 type Img = CanvasImageSource & { width: number; height: number };
 const clamp = (x: number, a = 0, b = 1) => Math.max(a, Math.min(b, x));
@@ -49,7 +50,7 @@ export class Renderer {
   big(t: number) { return /hook|bridge|chant/.test(this.section(t)[0]); }
   shotAt(t: number): Shot { const s = this.p.shots; let lo = 0, hi = s.length - 1, r = 0; while (lo <= hi) { const m = (lo + hi) >> 1; if (s[m].from <= t) { r = m; lo = m + 1; } else hi = m - 1; } return s[r]; }
   endStart() { const e = this.p.sections.find(s => s[0] === 'end'); return e ? e[1] : (this.p.analysis?.dur ?? 1e9); }
-  font(fam: string, sz: number, opts = '') { const weight = /Playfair/.test(fam) ? '900' : /Oswald|DM Mono/.test(fam) ? (opts.includes('light') ? '400' : '600') : '400'; return `${opts.includes('italic') ? 'italic ' : ''}${weight} ${Math.round(sz)}px "${fam}"`; }
+  font(fam: string, sz: number, opts = '') { const weight = FONT_WEIGHT[fam] ?? '400'; return `${opts.includes('italic') && fam === 'Playfair Display' ? 'italic ' : ''}${weight} ${Math.round(sz)}px "${fam}"`; }
   foil(c: Ctx, x0: number, y0: number, x1: number, y1: number, t: number) {
     const st = this.p.style; const g = c.createLinearGradient(x0, y0, x1, y1), sh = (t * 0.45) % 1.6 - 0.3;
     const base = st.palette.accent;

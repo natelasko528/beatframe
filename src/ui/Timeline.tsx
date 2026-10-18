@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
 
 // The edit at a glance: loudness, beats, sections, shots (as a film strip), lyric lines and the playhead.
-const SEC_COLORS: Record<string, string> = { open: '#3a3f4b', intro: '#4a4f5c', hook: '#c9861a', verse: '#3f6f8f', bridge: '#8f4f8f', outro: '#4a4f5c', end: '#2b2e35', chant: '#c9861a', verse3: '#3f6f8f' };
+const SEC_COLORS: Record<string, string> = { open: '#2b2f38', intro: '#3a3f4b', hook: '#b02a5c', verse: '#2f5f86', bridge: '#a0712a', outro: '#3a3f4b', end: '#22252c' };
 
 export function Timeline({ seek }: { seek: (t: number) => void }) {
   const cv = useRef<HTMLCanvasElement>(null); const wrap = useRef<HTMLDivElement>(null);
@@ -22,18 +22,18 @@ export function Timeline({ seek }: { seek: (t: number) => void }) {
     A.rms.forEach((v, i) => { const x = X(i * A.curveDt), h = v * 34; g.fillRect(x, 50 - h, Math.max(1, X(A.curveDt) - 0.5), h * 2); });
     // beats + kicks
     g.fillStyle = 'rgba(233,228,216,.22)'; A.beats.forEach(b => g.fillRect(X(b), 16, 1, 68));
-    g.fillStyle = '#ffb000'; A.kicks.forEach(k => g.fillRect(X(k), 80, 1.5, 4));
+    g.fillStyle = '#ffb347'; A.kicks.forEach(k => g.fillRect(X(k), 80, 1.5, 4));
     // shots as film strip
     project.shots.forEach(s => {
       const x0 = X(s.from), x1 = X(s.to), im = images[s.img];
       g.fillStyle = '#121317'; g.fillRect(x0, 88, x1 - x0, 44);
       if (im && x1 - x0 > 3) { g.save(); g.beginPath(); g.rect(x0 + 1, 89, x1 - x0 - 2, 42); g.clip(); const sc = 42 / im.height; g.drawImage(im, x0 + (x1 - x0) / 2 - (im.width * sc) / 2, 89, im.width * sc, 42); g.restore(); }
       else { g.fillStyle = s.kind === 'end' || s.kind === 'open' ? '#2b2e35' : '#262931'; g.fillRect(x0 + 1, 89, x1 - x0 - 2, 42); }
-      if (s.letter && x1 - x0 > 12) { g.fillStyle = '#ffb000'; g.font = '700 12px "Archivo Variable"'; g.fillText(s.letter, x0 + 4, 102); }
-      g.fillStyle = s.drop ? '#ff5a3c' : '#0b0c0f'; g.fillRect(x0, 88, s.drop ? 2 : 1, 44);
+      if (s.letter && x1 - x0 > 12) { g.fillStyle = '#ffb347'; g.font = '700 12px "Archivo Variable"'; g.fillText(s.letter, x0 + 4, 102); }
+      g.fillStyle = s.drop ? '#ff3d7f' : '#0b0c0f'; g.fillRect(x0, 88, s.drop ? 2 : 1, 44);
     });
     // lyric lines
-    project.lines.forEach(l => { const x0 = X(l.start), x1 = X(l.end); g.fillStyle = l.style === 'hook' ? 'rgba(201,134,26,.75)' : 'rgba(91,140,255,.55)'; g.fillRect(x0, 138, Math.max(2, x1 - x0), 10); if (x1 - x0 > 50) { g.fillStyle = '#e9e4d8'; g.font = '500 10px "Archivo Variable"'; g.save(); g.beginPath(); g.rect(x0, 148, x1 - x0, 16); g.clip(); g.fillText(l.text, x0 + 2, 161); g.restore(); } });
+    project.lines.forEach(l => { const x0 = X(l.start), x1 = X(l.end); g.fillStyle = l.style === 'hook' ? 'rgba(255,61,127,.7)' : 'rgba(90,150,210,.6)'; g.fillRect(x0, 138, Math.max(2, x1 - x0), 10); if (x1 - x0 > 50) { g.fillStyle = '#e9e4d8'; g.font = '500 10px "Archivo Variable"'; g.save(); g.beginPath(); g.rect(x0, 148, x1 - x0, 16); g.clip(); g.fillText(l.text, x0 + 2, 161); g.restore(); } });
   }, [project, images, width, dur]);
   if (!dur) return <div className="timeline is-empty" ref={wrap}><span>The timeline appears once a song is loaded.</span></div>;
   const px = (time / dur) * width;

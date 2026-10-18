@@ -48,7 +48,9 @@ export const PRESETS: Record<string, Style> = {
   },
 };
 
-export const FONT_CHOICES = ['Anton', 'Bebas Neue', 'Oswald', 'Permanent Marker', 'Playfair Display', 'DM Mono'];
+export const FONT_CHOICES = ['Anton', 'Bebas Neue', 'Oswald', 'Montserrat', 'Space Grotesk', 'Permanent Marker', 'Caveat', 'Playfair Display', 'Cinzel', 'DM Mono'];
+/** The weight each family is loaded at (see main.tsx / CLI). */
+export const FONT_WEIGHT: Record<string, string> = { 'Anton': '400', 'Bebas Neue': '400', 'Oswald': '600', 'Montserrat': '800', 'Space Grotesk': '700', 'Permanent Marker': '400', 'Caveat': '700', 'Playfair Display': '900', 'Cinzel': '700', 'DM Mono': '500' };
 
 export const MOODS: Record<string, { grade: string; light: string }> = {
   'Golden summer': { grade: 'rich warm amber-and-teal hip-hop music video color grade', light: 'Golden hour, low orange sun, glowing haze.' },

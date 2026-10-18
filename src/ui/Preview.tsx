@@ -35,7 +35,7 @@ export function Preview({ audioRef }: { audioRef: React.RefObject<HTMLAudioEleme
   return (
     <div className={`preview ${vertical ? 'is-vertical' : ''}`}>
       <canvas ref={cv} width={PW} height={PH} aria-label="Video preview" />
-      {!project.shots.length && <p className="preview-empty">{project.analysis ? 'Time your lyrics, then plan the edit to see the video here.' : 'Add a song to start.'}</p>}
+      {!project.shots.length && <p className="preview-empty">No shots yet.</p>}
     </div>
   );
 }

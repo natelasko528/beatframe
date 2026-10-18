@@ -130,3 +130,23 @@ export function planEdit(p: Project, mood: string, city = ''): { shots: Shot[]; 
   for (let i = 0; i < shots.length - 1; i++) shots[i].to = shots[i + 1].from;
   return { shots, scenes };
 }
+
+/** Cap the number of distinct scenes (cost control). Dropped shots re-use a nearby kept scene; alphabet songs keep one scene per letter. */
+export function capScenes(p: Project, budget: number) {
+  const isLetter = (id: string) => p.shots.some(s => s.img === id && s.letter);
+  const letterCount = p.scenes.filter(s => isLetter(s.id)).length;
+  if (letterCount) budget = Math.max(budget, letterCount + 4);
+  if (p.scenes.length <= budget) return;
+  const uses = new Map<string, number>(); p.shots.forEach(s => s.img && uses.set(s.img, (uses.get(s.img) || 0) + (s.to - s.from)));
+  const ranked = [...p.scenes].sort((a, b) => Number(isLetter(b.id)) - Number(isLetter(a.id)) || (uses.get(b.id) || 0) - (uses.get(a.id) || 0));
+  const keep = new Set(ranked.slice(0, budget).map(s => s.id));
+  const keptOrder = p.scenes.filter(s => keep.has(s.id)).map(s => s.id);
+  for (let i = 0; i < p.shots.length; i++) {
+    const s = p.shots[i]; if (!s.img || keep.has(s.img)) continue;
+    const prevImg = p.shots[i - 1]?.img, nextImg = p.shots[i + 1]?.img;
+    let pick = '';
+    for (let j = i - 2; j >= 0 && !pick; j--) { const c = p.shots[j].img; if (c && keep.has(c) && c !== prevImg && c !== nextImg) pick = c; }
+    s.img = pick || keptOrder.find(c => c !== prevImg && c !== nextImg) || keptOrder[0];
+  }
+  p.scenes = p.scenes.filter(s => keep.has(s.id));
+}

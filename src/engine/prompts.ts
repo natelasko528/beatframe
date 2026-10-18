@@ -1,4 +1,4 @@
-// Template-based scene prompts (no LLM needed). Optional LLM polishing lives in providers/llm.ts.
+// Template-based scene prompts (no AI needed). AI ideas from stages.ts slot into these templates.
 import { MOODS } from './styles';
 
 // keyword -> visual. First matches win; several can combine.
@@ -43,10 +43,3 @@ export function buildPrompt(o: { lyric: string; mood: string; withAvatar: boolea
     'No text, no letters, no captions, no logos, no watermarks.'].filter(Boolean).join(' ').replace(/\s+/g, ' ');
 }
 
-import type { Project, Scene } from './types';
-/** (Re)build a scene's full image prompt from its fields. Hand-written prompts are left alone. */
-export function promptForScene(p: Project, s: Scene): string {
-  if (s.custom) return s.prompt;
-  return buildPrompt({ lyric: s.lyric ?? '', letterWord: s.word, idea: s.idea, mood: p.mood ?? 'After-dark luxury', withAvatar: s.withAvatar,
-    avatar: p.avatar.description, city: p.brief?.city ? `${p.brief.city}` : '' });
-}

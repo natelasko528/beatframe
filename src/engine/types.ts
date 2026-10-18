@@ -31,7 +31,9 @@ export interface LetterCue { t: number; ch: string; word: string; end: number; k
 export interface Scene {
   id: string; prompt: string; withAvatar: boolean; refIds: string[];   // refIds: avatar/location asset ids
   lyric?: string; word?: string;     // what the scene plays under (from the planner)
-  idea?: string;                     // short visual idea (creative director); expanded into prompt by code
+  idea?: string;                     // short visual idea (AI scene writer); expanded into the image prompt by code
+  location?: string; shot?: string;  // where it happens / shot size (continuity)
+  verdict?: { pass: boolean; score: number; issues: string[] };   // AI image check
   custom?: boolean;                  // user wrote the full prompt by hand; never overwrite it
   status?: 'idle' | 'queued' | 'generating' | 'done' | 'error'; error?: string;
 }
@@ -71,6 +73,10 @@ export interface Project {
   style: Style;
   avatar: { description: string; refIds: string[] };
   plan: { mode: 'per-line' | 'alphabet' | 'beats'; beatsPerShot: number; coverId?: string; sceneBudget?: number };
-  brief?: import('./director').Brief;       // the suggestion set (what the UI offers as "Suggested")
+  reading?: import('./stages').SongReading;    // AI (or code) reading of the song
+  direction?: import('./stages').Direction;    // current creative direction (drives style + image prompts)
+  suggested?: import('./stages').Direction;    // what the AI originally suggested (UI shows "Suggested" / reset)
+  notes?: string;                              // the artist's own creative notes, fed to every AI stage
+  frameNotes?: string[];                       // AI frame-check notes
   mood?: string;
 }

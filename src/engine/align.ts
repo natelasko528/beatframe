@@ -154,18 +154,29 @@ export function linesFromLRC(lrc: string, parsed: ParsedLine[], dur: number): Li
 
 /** No lyrics pasted: build lines straight from the transcript. Pauses split lines; lines that repeat become the hook. */
 export function linesFromTranscript(asr: AsrWord[], dur: number): Line[] {
-  const ws = asr.filter(w => w.w.trim());
+  // Whisper marks music with ♪ or [Music]; those are phrase boundaries, not words.
+  const MARK = /♪|\[[^\]]*\]|\((?:music|instrumental)[^)]*\)/gi;
+  const ws: (AsrWord & { br?: boolean })[] = []; let br = false;
+  for (const w of asr) {
+    const had = MARK.test(w.w); MARK.lastIndex = 0;
+    const clean = w.w.replace(MARK, '').trim();
+    if (!clean) { br = true; continue; }
+    ws.push({ ...w, w: clean, br: br || (had && /^\s*(♪|\[)/.test(w.w)) }); br = had && /(♪|\])\s*$/.test(w.w);
+  }
   const groups: AsrWord[][] = []; let cur: AsrWord[] = [];
   for (let i = 0; i < ws.length; i++) {
     const w = ws[i], prev = ws[i - 1];
     const gap = prev ? w.s - prev.e : 0;
-    if (cur.length && (gap > 0.42 || cur.length >= 10 || (/[.!?]$/.test(prev.w.trim()) && cur.length >= 4))) { groups.push(cur); cur = []; }
+    if (cur.length && (w.br || gap > 0.42 || cur.length >= 10 || (/[.!?]$/.test(prev.w.trim()) && cur.length >= 4))) { groups.push(cur); cur = []; }
     cur.push(w);
   }
   if (cur.length) groups.push(cur);
   const text = (g: AsrWord[]) => g.map(w => w.w.trim()).join(' ').replace(/\s+([,.!?])/g, '$1');
   const key = (g: AsrWord[]) => g.map(w => norm(w.w)).join(' ');
-  const counts = new Map<string, number>(); groups.forEach(g => counts.set(key(g), (counts.get(key(g)) || 0) + 1));
+  // a hook is a line that comes back: compare word sets so small transcription slips still count as a repeat
+  const sets = groups.map(g => new Set(g.map(w => norm(w.w)).filter(Boolean)));
+  const sim = (a: Set<string>, b: Set<string>) => { let n = 0; a.forEach(x => b.has(x) && n++); return n / Math.max(1, a.size + b.size - n); };
+  const counts = new Map<string, number>(); groups.forEach((g, i) => counts.set(key(g), 1 + sets.filter((o, j) => j !== i && Math.abs(j - i) > 1 && sim(sets[i], o) >= 0.6).length));
   let sec = 'Verse 1', verseN = 1, hookN = 0, lastEnd = 0, prevHook = false;
   const lines: Line[] = groups.map((g, i) => {
     const isHook = (counts.get(key(g)) || 0) >= 2 && g.length >= 3;

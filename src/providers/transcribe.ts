@@ -2,7 +2,7 @@ import type { AsrWord } from '../engine/align';
 import { pfetch, type KeySettings } from './keys';
 
 export type AsrEngine = { kind: 'local'; model: string } | { kind: 'openai'; model: string };
-export const LOCAL_ASR_MODELS = ['onnx-community/whisper-base.en', 'onnx-community/whisper-small.en', 'onnx-community/whisper-tiny.en'];
+export const LOCAL_ASR_MODELS = ['onnx-community/whisper-base_timestamped', 'onnx-community/whisper-small_timestamped', 'onnx-community/whisper-base.en_timestamped', 'onnx-community/whisper-tiny_timestamped'];  // _timestamped exports carry the cross-attentions word timing needs
 
 async function to16k(buffer: AudioBuffer): Promise<Float32Array> {
   const off = new OfflineAudioContext(1, Math.ceil(buffer.duration * 16000), 16000);
@@ -22,8 +22,10 @@ export async function transcribe(engine: AsrEngine, audio: AudioBuffer, file: Bl
     const j = await r.json(); return (j.words || []).map((w: any) => ({ w: w.word, s: w.start, e: w.end }));
   }
   const pcm = await to16k(audio);
-  const device = (navigator as any).gpu ? 'webgpu' : 'wasm';
-  onStatus(`Loading ${engine.model.split('/')[1]} (${device}) — first run downloads the model once…`);
+  // navigator.gpu can exist with no usable adapter, so ask for one before choosing WebGPU
+  let device: 'webgpu' | 'wasm' = 'wasm';
+  try { if ((navigator as any).gpu && await (navigator as any).gpu.requestAdapter()) device = 'webgpu'; } catch { /* CPU it is */ }
+  onStatus(`Loading ${engine.model.split('/')[1]} on your ${device === 'webgpu' ? 'GPU' : 'CPU'}. The first run downloads the model once…`);
   const worker = new Worker(new URL('./whisper.worker.ts', import.meta.url), { type: 'module' });
   return new Promise((res, rej) => {
     worker.onmessage = (e) => {

@@ -25,7 +25,7 @@ const engine = path.join(ROOT, 'dist-engine', 'beatframe-engine.js');
 if (!fs.existsSync(engine)) { console.log('Building engine bundle…'); execFileSync('npx', ['vite', 'build', '-c', 'vite.engine.config.ts'], { cwd: ROOT, stdio: 'inherit' }); }
 
 // tiny static server: page + fonts + engine + project
-const fontCss = ['@fontsource/anton/400.css', '@fontsource/permanent-marker/400.css', '@fontsource/oswald/400.css', '@fontsource/oswald/600.css', '@fontsource/bebas-neue/400.css', '@fontsource/playfair-display/900.css', '@fontsource/playfair-display/900-italic.css', '@fontsource/dm-mono/500.css'];
+const fontCss = ['@fontsource/anton/400.css', '@fontsource/permanent-marker/400.css', '@fontsource/oswald/400.css', '@fontsource/oswald/600.css', '@fontsource/bebas-neue/400.css', '@fontsource/playfair-display/900.css', '@fontsource/playfair-display/900-italic.css', '@fontsource/dm-mono/500.css', '@fontsource/montserrat/800.css', '@fontsource/caveat/700.css', '@fontsource/cinzel/700.css', '@fontsource/space-grotesk/700.css'];
 const page = `<!doctype html><meta charset=utf-8>${fontCss.map(f => `<link rel=stylesheet href="/node_modules/${f}">`).join('')}<body style="margin:0;background:#000"><canvas id=c width=${W} height=${H}></canvas><script src="/engine.js"></script>`;
 const server = http.createServer((req, r) => {
   const u = decodeURIComponent(req.url.split('?')[0]);
@@ -47,7 +47,7 @@ async function work(w) {
   await pg.goto(`http://127.0.0.1:${port}/`);
   await pg.evaluate(async ([W, H]) => {
     await document.fonts.ready;
-    await Promise.all(['400 40px Anton', '400 40px "Permanent Marker"', '600 40px Oswald', '400 40px Oswald', '400 40px "Bebas Neue"', '900 40px "Playfair Display"', 'italic 900 40px "Playfair Display"', '500 40px "DM Mono"'].map(f => document.fonts.load(f)));
+    await Promise.all(['400 40px Anton', '400 40px "Permanent Marker"', '600 40px Oswald', '400 40px Oswald', '400 40px "Bebas Neue"', '900 40px "Playfair Display"', 'italic 900 40px "Playfair Display"', '500 40px "DM Mono"', '800 40px Montserrat', '700 40px Caveat', '700 40px Cinzel', '700 40px "Space Grotesk"'].map(f => document.fonts.load(f)));
     const p = await (await fetch('/project.json')).json(); const imgs = {};
     await Promise.all(p.assets.filter(x => x.url).map(async x => { imgs[x.id] = await createImageBitmap(await (await fetch(x.url)).blob()); }));
     window.R = new window.BeatFrame.Renderer(document.getElementById('c'), { ...p, width: W, height: H }, imgs);
