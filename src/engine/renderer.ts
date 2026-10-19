@@ -89,9 +89,9 @@ export class Renderer {
     const sc = Math.max(this.W / img.width, this.H / img.height) * z, w = img.width * sc, h = img.height * sc;
     const x0 = (this.W - w) / 2 + (xp / 100) * this.W, y0 = (this.H - h) / 2 + (yp / 100) * this.H;
     const seed = Math.round(s.from * 1000) + s.img.length * 7, ang = hash(seed) * Math.PI * 2, sign = hash(seed + 3) > 0.5 ? 1 : -1;
-    const travel = (k - 0.5) * 0.05 * strength;                  // ~5% of the frame across a shot, centred so cuts stay clean
+    const travel = (k - 0.5) * 0.13 * strength;                  // camera slides ~10% of the frame across a shot, centred so cuts stay clean
     const cam: [number, number] = [Math.cos(ang) * travel, Math.sin(ang) * travel * 0.45];
-    const dolly = sign * (k - 0.5) * 0.16 * strength + 0.05 * strength * kick;
+    const dolly = sign * (k - 0.5) * 0.4 * strength + 0.08 * strength * kick;
     const cv = this.motion.draw(img, dep, { rect: [x0 / this.W, y0 / this.H, w / this.W, h / this.H], cam, dolly, focus: 0.35, t, water: strength, sway: strength });
     c.drawImage(cv as any, 0, 0, this.W, this.H);
     return true;

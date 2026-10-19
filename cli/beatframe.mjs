@@ -22,7 +22,8 @@ const dur = project.analysis?.dur; if (!dur) { console.error('Project has no ana
 const f0 = Math.round(+opt('from', 0) * fps), f1 = Math.round(+opt('to', dur) * fps);
 
 const engine = path.join(ROOT, 'dist-engine', 'beatframe-engine.js');
-if (!fs.existsSync(engine)) { console.log('Building engine bundle…'); execFileSync('npx', ['vite', 'build', '-c', 'vite.engine.config.ts'], { cwd: ROOT, stdio: 'inherit' }); }
+const newest = d => fs.readdirSync(d, { withFileTypes: true }).reduce((m, e) => Math.max(m, e.isDirectory() ? newest(path.join(d, e.name)) : fs.statSync(path.join(d, e.name)).mtimeMs), 0);
+if (!fs.existsSync(engine) || fs.statSync(engine).mtimeMs < newest(path.join(ROOT, 'src', 'engine'))) { console.log('Building engine bundle…'); execFileSync('npx', ['vite', 'build', '-c', 'vite.engine.config.ts'], { cwd: ROOT, stdio: 'inherit' }); }
 
 // tiny static server: page + fonts + engine + project
 const fontCss = ['@fontsource/anton/400.css', '@fontsource/permanent-marker/400.css', '@fontsource/oswald/400.css', '@fontsource/oswald/600.css', '@fontsource/bebas-neue/400.css', '@fontsource/playfair-display/900.css', '@fontsource/playfair-display/900-italic.css', '@fontsource/dm-mono/500.css', '@fontsource/montserrat/800.css', '@fontsource/caveat/700.css', '@fontsource/cinzel/700.css', '@fontsource/space-grotesk/700.css'];

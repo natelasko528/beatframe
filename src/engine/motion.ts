@@ -23,6 +23,11 @@ uniform float alpha;
 
 vec3 hsv(vec3 c){ vec4 K=vec4(0.,-1./3.,2./3.,-1.); vec4 q=mix(vec4(c.bg,K.wz),vec4(c.gb,K.xy),step(c.b,c.g)); vec4 r=mix(vec4(q.xyw,c.r),vec4(c.r,q.yzx),step(q.x,c.r)); float d=r.x-min(r.w,r.y); return vec3(abs(r.z+(r.w-r.y)/(6.*d+1e-6)),d/(r.x+1e-6),r.x); }
 float hash(vec2 v){ return fract(sin(dot(v, vec2(127.1, 311.7))) * 43758.5453); }
+// softened depth: averaging a small cross of taps turns hard silhouette edges into short ramps, so parallax stretches instead of tearing
+float D(vec2 q){ vec2 e = vec2(0.006, 0.0); q = clamp(q, 0.001, 0.999);
+  return (texture(dep, q).r * 2.0 + texture(dep, q + e).r + texture(dep, q - e).r + texture(dep, q + e.yx * 1.7).r + texture(dep, q - e.yx * 1.7).r) / 6.0; }
+float n2(vec2 x){ vec2 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
 
 void main(){
   vec2 s = vec2(p.x, 1.0 - p.y);                 // screen uv, y down
@@ -31,25 +36,26 @@ void main(){
   // parallax by fixed-point iteration: find the source pixel whose own depth sends it here
   vec2 q = uv;
   for (int i = 0; i < 4; i++) {
-    float d = texture(dep, clamp(q, 0.001, 0.999)).r - focus;
+    float d = D(q) - focus;
     q = c + (uv - c) / (1.0 + dolly * d) - cam * d;
   }
   vec3 base = texture(img, clamp(q, 0.001, 0.999)).rgb;
   vec3 h = hsv(base);
-  float d0 = texture(dep, clamp(q, 0.001, 0.999)).r;
+  float d0 = D(q);
   // water: cyan/blue, saturated, not in the near foreground
   float hueW = smoothstep(0.42, 0.47, h.x) * (1.0 - smoothstep(0.60, 0.66, h.x));
   float mW = water * hueW * smoothstep(0.18, 0.35, h.y) * (1.0 - smoothstep(0.55, 0.8, d0)) * step(0.3, q.y);
   // foliage: green, upper part of frame, mid/far
   float hueF = smoothstep(0.17, 0.22, h.x) * (1.0 - smoothstep(0.40, 0.45, h.x));
   float mF = sway * hueF * smoothstep(0.15, 0.3, h.y) * (1.0 - smoothstep(0.6, 0.85, d0)) * (1.0 - smoothstep(0.45, 0.8, q.y));
-  vec2 off = vec2(sin(q.y * 220.0 + t * 2.4) * 0.0011 + sin(q.y * 97.0 - t * 1.3) * 0.0007, sin(q.x * 140.0 + t * 1.9) * 0.0006) * mW;
-  off += vec2(sin(t * 1.15 + q.y * 5.0 + q.x * 3.0) * 0.0035, sin(t * 0.9 + q.x * 4.0) * 0.0012) * mF * (1.0 - q.y);
+  vec2 wq = vec2(q.x * 9.0, q.y * 26.0 - t * 0.9);                  // swells roll toward the viewer
+  vec2 off = (vec2(n2(wq), n2(wq + 17.3)) - 0.5) * vec2(0.010, 0.006) * mW;
+  off += vec2(sin(t * 1.3 + q.y * 5.0 + q.x * 3.0) * 0.008, sin(t * 1.0 + q.x * 4.0) * 0.003) * mF * (1.0 - q.y);
   vec3 col = (mW + mF) > 0.001 ? texture(img, clamp(q + off, 0.001, 0.999)).rgb : base;
   // sun glints on water: bright pixels twinkle
   float lum = dot(col, vec3(0.299, 0.587, 0.114));
   float tw = hash(floor(q * vec2(420.0, 240.0)) + floor(t * 9.0));
-  col += mW * smoothstep(0.72, 0.95, lum) * step(0.82, tw) * 0.35;
+  col += mW * smoothstep(0.68, 0.92, lum) * step(0.78, tw) * 0.45;
   o = vec4(col, alpha);
 }`;
 
