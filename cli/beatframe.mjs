@@ -44,11 +44,8 @@ const exe = process.env.CHROMIUM_PATH || (fs.existsSync('/opt/pw-browsers') ? un
 const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox', '--disable-dev-shm-usage', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--disable-accelerated-2d-canvas'] }).catch(e => { console.error('Could not start Chromium. Run `npx playwright install chromium` or set CHROMIUM_PATH.\n' + e.message); process.exit(1); });
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'beatframe-'));
 const total = f1 - f0, per = Math.ceil(total / workers); let doneFrames = 0; const t0 = Date.now();
-async function work(w) {
-  const a = f0 + w * per, b = Math.min(f1, a + per); if (a >= b) return null;
-  const pg = await browser.newPage({ viewport: { width: W, height: H } });
-  await pg.goto(`http://127.0.0.1:${port}/`);
-  await pg.evaluate(async ([W, H]) => {
+async function setup(pg) {
+  return pg.evaluate(async ([W, H]) => {
     await document.fonts.ready;
     await Promise.all(['400 40px Anton', '400 40px "Permanent Marker"', '600 40px Oswald', '400 40px Oswald', '400 40px "Bebas Neue"', '900 40px "Playfair Display"', 'italic 900 40px "Playfair Display"', '500 40px "DM Mono"', '800 40px Montserrat', '700 40px Caveat', '700 40px Cinzel', '700 40px "Space Grotesk"'].map(f => document.fonts.load(f)));
     const p = await (await fetch('/project.json')).json(); const imgs = {};
@@ -57,9 +54,16 @@ async function work(w) {
     window.R = new window.BeatFrame.Renderer(document.getElementById('c'), { ...p, width: W, height: H }, imgs);
     if (Object.keys(clips).length) window.R.setClips(new window.BeatFrame.ClipBank(clips));
   }, [W, H]);
+}
+async function work(w) {
+  const a = f0 + w * per, b = Math.min(f1, a + per); if (a >= b) return null;
+  const pg = await browser.newPage({ viewport: { width: W, height: H } });
+  await pg.goto(`http://127.0.0.1:${port}/`);
+  await setup(pg);
   const seg = path.join(tmp, `seg${w}.mp4`);
   const ff = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(fps), '-c:v', 'mjpeg', '-i', '-', '-c:v', 'libx264', '-preset', 'medium', '-crf', crf, '-pix_fmt', 'yuv420p', seg], { stdio: ['pipe', 'inherit', 'inherit'] });
   for (let f = a; f < b; f++) {
+    if ((f - a) > 0 && (f - a) % 1500 === 0) { await pg.goto(`http://127.0.0.1:${port}/`); await setup(pg); }   // fresh page every ~50s of video keeps memory flat
     const d = await pg.evaluate(async t => { await window.R.prepare(t); window.R.renderAt(t); return document.getElementById('c').toDataURL('image/jpeg', 0.94); }, f / fps);
     if (!ff.stdin.write(Buffer.from(d.split(',')[1], 'base64'))) await new Promise(r => ff.stdin.once('drain', r));
     if (++doneFrames % 60 === 0) { const el = (Date.now() - t0) / 1000; process.stdout.write(`\r${(100 * doneFrames / total).toFixed(1)}%  ${(doneFrames / el).toFixed(1)} fps  eta ${Math.round((total - doneFrames) / (doneFrames / el))}s   `); }

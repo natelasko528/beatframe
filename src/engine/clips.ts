@@ -18,7 +18,8 @@ export function clipTime(a: number, shotLen: number, clipDur: number) {
 }
 
 export class ClipBank {
-  private e = new Map<string, Entry>(); private loading = new Map<string, Promise<Entry | null>>();
+  private e = new Map<string, Entry>(); private loading = new Map<string, Promise<Entry | null>>(); private used: string[] = [];
+  private static KEEP = 4;   // open decoders at once; older ones are closed so a long video never piles up memory
   constructor(private blobs: Record<string, Blob>) {}
   has(id: string) { return !!this.blobs[id]; }
   duration(id: string) { return this.e.get(id)?.dur ?? 0; }
@@ -42,6 +43,8 @@ export class ClipBank {
   /** Decode the frame at clip time `ct` (seconds) so `frame(id)` returns it.
    *  Plays forward with one running decoder (cheap); only jumps backward or far ahead restart it from the nearest keyframe. */
   async seek(id: string, ct: number) {
+    this.used = [id, ...this.used.filter(x => x !== id)];
+    for (const old of this.used.splice(ClipBank.KEEP)) this.close(old);
     const ent = await this.open(id); if (!ent) return;
     ct = Math.max(0, ct);
     if (Math.abs(ent.at - ct) < 1 / 120 && ent.frame) return;
@@ -60,6 +63,11 @@ export class ClipBank {
       }
       const w = await ent.sink.getCanvas(ct); if (w) { ent.frame = w.canvas as Frame; ent.at = ct; }   // fallback
     } catch { /* keep the last good frame */ }
+  }
+  private close(id: string) {
+    const ent = this.e.get(id); if (!ent) return;
+    ent.it?.return?.(undefined).catch?.(() => {}); ent.it = undefined; ent.next = undefined; ent.frame = undefined;
+    this.e.delete(id); this.loading.delete(id);
   }
   async durationOf(id: string) { return (await this.open(id))?.dur ?? 0; }
 }
