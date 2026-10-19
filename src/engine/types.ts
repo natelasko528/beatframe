@@ -37,7 +37,7 @@ export interface Scene {
   custom?: boolean;                  // user wrote the full prompt by hand; never overwrite it
   status?: 'idle' | 'queued' | 'generating' | 'done' | 'error'; error?: string;
 }
-export interface Asset { id: string; name: string; kind: 'image' | 'avatar' | 'location' | 'cover'; url: string }
+export interface Asset { id: string; name: string; kind: 'image' | 'avatar' | 'location' | 'cover' | 'depth'; url: string }
 
 export interface Style {
   name: string;
@@ -48,7 +48,7 @@ export interface Style {
     size: number; hookScale: number; reveal: 'rise' | 'blur' | 'pop' | 'type';
     case: 'upper' | 'as-is'; hotWords: string[]; alliteration: boolean; activeColor: string;
   };
-  motion: { kickZoom: number; cutPunch: number; shake: number; whipPans: boolean; letterMask: boolean };
+  motion: { kickZoom: number; cutPunch: number; shake: number; whipPans: boolean; letterMask: boolean; depth?: number };  // depth: living-still motion strength 0..1 (needs depth maps)
   grade: { bloom: number; grain: number; vignette: number; lightLeak: number; leakColor: string; letterbox: number; chroma: boolean };
   particles: 'embers' | 'rain' | 'snow' | 'dust' | 'none';
   features: { signs: boolean; captions: boolean; bigLetters: boolean; ruler: boolean; dictionaryOpen: boolean; dropLockup: boolean; stamps: boolean; footer: boolean };

@@ -7,8 +7,8 @@ import type { AiModel } from './providers/ai';
 import type { AsrEngine } from './providers/transcribe';
 
 export type Screen = 'start' | 'producing' | 'studio';
-export type Tab = 'vibe' | 'scenes' | 'words' | 'cast' | 'export';
-export type StepId = 'beat' | 'words' | 'reading' | 'direction' | 'edit' | 'scenes' | 'check' | 'ready';
+export type Tab = 'vibe' | 'scenes' | 'motion' | 'words' | 'cast' | 'export';
+export type StepId = 'beat' | 'words' | 'reading' | 'direction' | 'edit' | 'scenes' | 'motion' | 'check' | 'ready';
 export interface RunStep { id: StepId; label: string; status: 'wait' | 'run' | 'done' | 'skip' | 'error'; detail?: string }
 
 export function newProject(): Project {
@@ -26,6 +26,7 @@ export const RUN_STEPS: RunStep[] = [
   { id: 'direction', label: 'Creative direction', status: 'wait' },
   { id: 'edit', label: 'Shot list cut to the beat', status: 'wait' },
   { id: 'scenes', label: 'Scenes', status: 'wait' },
+  { id: 'motion', label: 'Bringing the stills to life', status: 'wait' },
   { id: 'check', label: 'Final frame check', status: 'wait' },
   { id: 'ready', label: 'Ready', status: 'wait' },
 ];

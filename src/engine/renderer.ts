@@ -1,7 +1,9 @@
 // BeatFrame unified renderer. Deterministic: renderAt(t) always draws the same frame for the same project,
-// so preview, browser export and headless CLI render are identical. Canvas 2D only, no WebGL required.
+// so preview, browser export and headless CLI render are identical. Canvas 2D, plus an optional WebGL2
+// layer (motion.ts) that brings stills to life when depth maps exist; without WebGL it falls back to plain stills.
 import type { Project, Shot, Line, LetterCue } from './types';
 import { FONT_WEIGHT } from './styles';
+import { DepthMotion, depthId } from './motion';
 
 type Img = CanvasImageSource & { width: number; height: number };
 const clamp = (x: number, a = 0, b = 1) => Math.max(a, Math.min(b, x));
@@ -24,7 +26,7 @@ export class Renderer {
   p: Project; cv: HTMLCanvasElement | OffscreenCanvas; ctx: Ctx; imgs: Record<string, Img>;
   W: number; H: number; u: number; vertical: boolean;
   private bloom: any; private bloom2: any; private mask: any; private mctx: Ctx; private grain: any[] = []; private glow: any;
-  private kicksArr: number[]; private letterTimes: number[];
+  private kicksArr: number[]; private letterTimes: number[]; private motion: DepthMotion | null | undefined;
 
   constructor(canvas: HTMLCanvasElement | OffscreenCanvas, project: Project, images: Record<string, Img>) {
     this.cv = canvas; this.p = project; this.imgs = images;
@@ -68,14 +70,31 @@ export class Renderer {
   private paintShot(c: Ctx, s: Shot, t: number) {
     const st = this.p.style, len = s.to - s.from, a = t - s.from, k = easeIO(clamp(a / Math.max(len, 0.1)));
     const z = lerp(s.z0, s.z1, k), x = lerp(s.x0, s.x1, k), y = lerp(s.y0, s.y1, k);
-    const bump = 1 + st.motion.kickZoom * this.kick(t) * (this.big(t) ? 1.6 : 0.6);
+    const kick = this.kick(t);
+    const bump = 1 + st.motion.kickZoom * kick * (this.big(t) ? 1.6 : 0.6);
     const punch = 1 + (s.drop ? 0.14 : s.flash ? 0.07 : st.motion.cutPunch) * Math.pow(clamp(1 - a / (s.drop ? 0.38 : 0.22)), 2);
     const img = this.imgs[s.img];
     if (s.flash) (c as any).filter = `contrast(1.25) saturate(1.2) brightness(${1 + 0.5 * clamp(1 - a / 0.12)})`;
     const whip = s.whip && !s.drop ? clamp(1 - a / 0.24) : 0;
     if (whip > 0) { const wx = easeOut(whip) * 22; for (let i = 0; i < 5; i++) this.cover(c, img, z * bump * punch, x + wx + i * 3 * whip, y, 0.28); }
-    else this.cover(c, img, z * bump * punch, x, y);
+    else if (!this.living(c, s, img, z * bump * punch, x, y, t, k, kick)) this.cover(c, img, z * bump * punch, x, y);
     (c as any).filter = 'none';
+  }
+  /** Living still: depth parallax + water/foliage motion. Returns false when it can't run (no depth map / no WebGL). */
+  private living(c: Ctx, s: Shot, img: Img | undefined, z: number, xp: number, yp: number, t: number, k: number, kick: number) {
+    const strength = this.p.style.motion.depth ?? 0.8, dep = this.imgs[depthId(s.img)];
+    if (!img || !dep || strength <= 0) return false;
+    if (this.motion === undefined) this.motion = DepthMotion.create(this.W, this.H);
+    if (!this.motion) return false;
+    const sc = Math.max(this.W / img.width, this.H / img.height) * z, w = img.width * sc, h = img.height * sc;
+    const x0 = (this.W - w) / 2 + (xp / 100) * this.W, y0 = (this.H - h) / 2 + (yp / 100) * this.H;
+    const seed = Math.round(s.from * 1000) + s.img.length * 7, ang = hash(seed) * Math.PI * 2, sign = hash(seed + 3) > 0.5 ? 1 : -1;
+    const travel = (k - 0.5) * 0.05 * strength;                  // ~5% of the frame across a shot, centred so cuts stay clean
+    const cam: [number, number] = [Math.cos(ang) * travel, Math.sin(ang) * travel * 0.45];
+    const dolly = sign * (k - 0.5) * 0.16 * strength + 0.05 * strength * kick;
+    const cv = this.motion.draw(img, dep, { rect: [x0 / this.W, y0 / this.H, w / this.W, h / this.H], cam, dolly, focus: 0.35, t, water: strength, sway: strength });
+    c.drawImage(cv as any, 0, 0, this.W, this.H);
+    return true;
   }
   private drawShot(s: Shot, t: number) {
     const c = this.ctx, a = t - s.from, idx = this.p.shots.indexOf(s), prev = this.p.shots[idx - 1], T = 0.5;

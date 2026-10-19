@@ -38,7 +38,7 @@ const server = http.createServer((req, r) => {
 await new Promise(ok => server.listen(0, '127.0.0.1', ok)); const port = server.address().port;
 
 const exe = process.env.CHROMIUM_PATH || (fs.existsSync('/opt/pw-browsers') ? undefined : undefined);
-const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage'] }).catch(e => { console.error('Could not start Chromium. Run `npx playwright install chromium` or set CHROMIUM_PATH.\n' + e.message); process.exit(1); });
+const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox', '--disable-dev-shm-usage', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] }).catch(e => { console.error('Could not start Chromium. Run `npx playwright install chromium` or set CHROMIUM_PATH.\n' + e.message); process.exit(1); });
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'beatframe-'));
 const total = f1 - f0, per = Math.ceil(total / workers); let doneFrames = 0; const t0 = Date.now();
 async function work(w) {

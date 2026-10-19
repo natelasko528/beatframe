@@ -8,6 +8,8 @@ import { planSections, planLetters, planSigns, planEdit, capScenes } from './eng
 import * as St from './engine/stages';
 import { Renderer } from './engine/renderer';
 import { transcribe } from './providers/transcribe';
+import { estimateDepth } from './providers/depth';
+import { depthId } from './engine/motion';
 import { generateImage, shrink, pricePerImage, type ImageModel } from './providers/images';
 import { askJSON, geminiLyrics, defaultAi, usage, type AiModel } from './providers/ai';
 import * as db from './db';
@@ -127,6 +129,13 @@ export async function autoCreate(input: CreateInput) {
       const errs = S().project.scenes.filter(s => s.status === 'error');
       step('scenes', errs.length === P.scenes.length ? 'error' : 'done', errs.length ? `${P.scenes.length - errs.length} ready · ${errs.length} failed: ${errs[0].error?.slice(0, 100)}` : `${P.scenes.length} ready`);
     } else step('scenes', 'skip', 'No image key: upload your own images in Scenes, or add an OpenAI, Gemini or fal key');
+
+    // 6b. living stills — free on-device depth maps; the renderer turns them into parallax + water/palm motion
+    if (S().project.scenes.some(s => S().blobs[s.id])) {
+      step('motion', 'run', 'Mapping depth on your device…');
+      try { const n = await addDepth(undefined, (d, n) => step('motion', 'run', `Depth ${d} of ${n} (free, on your device)`)); step('motion', 'done', `${n} scenes move in 3D`); }
+      catch (e: any) { step('motion', 'skip', `Stills stay still: ${String(e?.message || e).slice(0, 90)}`); }
+    } else step('motion', 'skip');
 
     // 7. frame check — AI looks at rendered frames and fixes layout (code applies)
     if (ai && S().opts.frameCheck && Object.keys(S().images).length) {
@@ -300,7 +309,7 @@ export function planVideo() {
 }
 export function replan() { planVideo(); S().update(p => capScenes(p, p.plan.sceneBudget ?? 16)); refreshPrompts(); autosave(); }
 
-export async function addAsset(file: Blob, kind: 'image' | 'avatar' | 'location' | 'cover', id?: string, name = 'image') {
+export async function addAsset(file: Blob, kind: 'image' | 'avatar' | 'location' | 'cover' | 'depth', id?: string, name = 'image') {
   const aid = id ?? newId(kind[0]);
   const bmp = await createImageBitmap(file);
   S().set({ images: { ...S().images, [aid]: bmp }, blobs: { ...S().blobs, [aid]: file } });
@@ -310,12 +319,25 @@ export async function addAsset(file: Blob, kind: 'image' | 'avatar' | 'location'
     if (kind === 'cover') p.plan.coverId = aid;
   });
   await db.put('asset:' + aid, file); autosave();
+  if (kind === 'image' && S().images[depthId(aid)]) { removeAsset(depthId(aid)); if (S().screen === 'studio') addDepth([aid]).catch(() => {}); }
   return aid;
 }
 export function removeAsset(id: string) {
   const { [id]: _, ...images } = S().images; const { [id]: __, ...blobs } = S().blobs;
   S().set({ images, blobs }); S().update(p => { p.assets = p.assets.filter(a => a.id !== id); p.avatar.refIds = p.avatar.refIds.filter(r => r !== id); p.scenes.forEach(s => (s.refIds = s.refIds.filter(r => r !== id))); });
   db.del('asset:' + id); autosave();
+}
+
+/** Depth maps for scene images that don't have one yet (or the given ids). Code + a free open model; no API cost. */
+export async function addDepth(ids?: string[], onProgress?: (done: number, total: number) => void) {
+  const st = S(), todo = (ids ?? st.project.scenes.map(s => s.id)).filter(id => st.blobs[id] && (ids || !st.images[depthId(id)]));
+  let done = 0;
+  for (const id of todo) {
+    const png = await estimateDepth(id, S().blobs[id]);
+    await addAsset(png, 'depth', depthId(id), `${id} depth`);
+    onProgress?.(++done, todo.length);
+  }
+  return done;
 }
 
 /** Generate one scene; with image checking on, the AI judges it and one automatic re-roll fixes a failure. */

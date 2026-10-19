@@ -196,7 +196,7 @@ export function directionToStyle(d: Direction, hasLetters: boolean): Style {
     palette: { bg: d.palette.background, text: d.palette.text, accent: d.palette.accent, accent2: d.palette.accent2, hot: d.palette.hot, sign: d.palette.sign, signAlt: d.palette.accent2, shadowTint: tint(d.palette.sign, 0.35), highlightTint: tint(d.palette.accent, 0.22) },
     fonts: { lyric: d.fonts.lyric, hot: d.fonts.hot, ui: d.fonts.small, display: d.fonts.display },
     lyrics: { layout: d.lyrics.layout, size: d.lyrics.size, hookScale: 1.2, reveal: d.lyrics.reveal, case: d.lyrics.caps ? 'upper' : 'as-is', hotWords: [], alliteration: hasLetters, activeColor: d.palette.accent },
-    motion: { kickZoom: 0.004 + 0.014 * e, cutPunch: 0.015 + 0.04 * e, shake: Math.round(e * 5 * 2) / 2, whipPans: e > 0.55 && !hasLetters, letterMask: hasLetters },
+    motion: { kickZoom: 0.004 + 0.014 * e, cutPunch: 0.015 + 0.04 * e, shake: Math.round(e * 5 * 2) / 2, whipPans: e > 0.55 && !hasLetters, letterMask: hasLetters, depth: 0.8 },
     grade: { bloom: d.grade.bloom, grain: d.grade.grain, vignette: d.grade.vignette, lightLeak: d.grade.lightLeak, leakColor: (() => { const n = parseInt(d.palette.accent.slice(1), 16); return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`; })(), letterbox: d.grade.letterbox, chroma: d.grade.colourSplitOnDrops },
     particles: d.particles,
     features: { signs: d.graphics.placeSigns, captions: d.graphics.locationCaptions, bigLetters: hasLetters, ruler: hasLetters, dictionaryOpen: d.graphics.opener === 'definition', dropLockup: d.graphics.titleOnDrops, stamps: d.graphics.shoutStamps, footer: d.graphics.letterbox_credits && d.grade.letterbox >= 60 },
