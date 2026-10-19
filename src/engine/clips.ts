@@ -3,7 +3,7 @@
 import { Input, ALL_FORMATS, BlobSource, CanvasSink } from 'mediabunny';
 
 type Frame = CanvasImageSource & { width: number; height: number };
-interface Entry { sink: CanvasSink; dur: number; frame?: Frame; at: number }
+interface Entry { sink: CanvasSink; dur: number; frame?: Frame; at: number; it?: AsyncGenerator<any>; next?: any }
 
 /** Asset id of a scene's video clip. */
 export const clipId = (imgId: string) => `${imgId}~clip`;
@@ -31,7 +31,7 @@ export class ClipBank {
         try {
           const input = new Input({ source: new BlobSource(this.blobs[id]), formats: ALL_FORMATS });
           const track = await input.getPrimaryVideoTrack(); if (!track || !(await track.canDecode())) return null;   // undecodable → scene falls back to its still
-          const ent: Entry = { sink: new CanvasSink(track, { poolSize: 2 }), dur: await input.computeDuration(), at: -1 };
+          const ent: Entry = { sink: new CanvasSink(track, { poolSize: 3 }), dur: await input.computeDuration(), at: -1 };
           this.e.set(id, ent); return ent;
         } catch { return null; }
       })();
@@ -39,11 +39,27 @@ export class ClipBank {
     }
     return p;
   }
-  /** Decode the frame at clip time `ct` (seconds) so `frame(id)` returns it. */
+  /** Decode the frame at clip time `ct` (seconds) so `frame(id)` returns it.
+   *  Plays forward with one running decoder (cheap); only jumps backward or far ahead restart it from the nearest keyframe. */
   async seek(id: string, ct: number) {
     const ent = await this.open(id); if (!ent) return;
+    ct = Math.max(0, ct);
     if (Math.abs(ent.at - ct) < 1 / 120 && ent.frame) return;
-    try { const w = await ent.sink.getCanvas(Math.max(0, ct)); if (w) { ent.frame = w.canvas as Frame; ent.at = ct; } } catch { /* keep the last good frame */ }
+    try {
+      if (!ent.it || ct < ent.at - 1e-3 || ct - ent.at > 1.0) {
+        await ent.it?.return?.(undefined);
+        ent.it = ent.sink.canvases(ct); ent.next = undefined;
+        const r = await ent.it.next(); if (r.done) return; ent.next = r.value;
+      }
+      // advance until the frame that covers ct
+      while (ent.next) {
+        const w = ent.next;
+        if (w.timestamp + (w.duration || 0) > ct + 1e-4) { ent.frame = w.canvas as Frame; ent.at = ct; return; }
+        const r = await ent.it!.next(); if (r.done) { ent.frame = w.canvas as Frame; ent.at = ct; ent.next = undefined; return; }
+        ent.next = r.value;
+      }
+      const w = await ent.sink.getCanvas(ct); if (w) { ent.frame = w.canvas as Frame; ent.at = ct; }   // fallback
+    } catch { /* keep the last good frame */ }
   }
   async durationOf(id: string) { return (await this.open(id))?.dur ?? 0; }
 }

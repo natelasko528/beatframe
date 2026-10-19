@@ -13,6 +13,7 @@ const opt = (k, d) => { const i = args.indexOf(`--${k}`); return i >= 0 ? args[i
 if (cmd !== 'render' || !args[1]) { console.log('usage: beatframe render <project.beatframe.json> --audio <song> --out <video.mp4> [--res 480|720|1080|1440|2160] [--workers 2] [--crf 17] [--from 0 --to <sec>]'); process.exit(1); }
 
 const projectPath = path.resolve(args[1]), audio = opt('audio'), out = path.resolve(opt('out', 'video.mp4'));
+const assetDir = path.resolve(opt('assets', path.dirname(projectPath)));   // asset urls of the form "file:NAME" are read from here (keeps big clips out of the JSON)
 const res = +opt('res', 1080); if (![480, 720, 1080, 1440, 2160].includes(res)) { console.error('--res must be 480, 720, 1080, 1440 or 2160 (4K)'); process.exit(1); }
 const workers = Math.max(1, +opt('workers', Math.max(1, Math.min(4, os.cpus().length - 1)))), crf = opt('crf', '17');
 const project = JSON.parse(fs.readFileSync(projectPath, 'utf8'));
@@ -33,13 +34,14 @@ const server = http.createServer((req, r) => {
   if (u === '/') { r.writeHead(200, { 'content-type': 'text/html' }); return r.end(page); }
   if (u === '/engine.js') { r.writeHead(200, { 'content-type': 'text/javascript' }); return fs.createReadStream(engine).pipe(r); }
   if (u === '/project.json') { r.writeHead(200, { 'content-type': 'application/json' }); return fs.createReadStream(projectPath).pipe(r); }
+  if (u.startsWith('/asset/')) { const f = path.join(assetDir, path.basename(u)); if (!fs.existsSync(f)) { r.writeHead(404); return r.end(); } r.writeHead(200); return fs.createReadStream(f).pipe(r); }
   const f = path.join(ROOT, u); if (!f.startsWith(path.join(ROOT, 'node_modules')) || !fs.existsSync(f)) { r.writeHead(404); return r.end(); }
   r.writeHead(200, { 'content-type': f.endsWith('.css') ? 'text/css' : f.endsWith('.woff2') ? 'font/woff2' : 'application/octet-stream' }); fs.createReadStream(f).pipe(r);
 });
 await new Promise(ok => server.listen(0, '127.0.0.1', ok)); const port = server.address().port;
 
 const exe = process.env.CHROMIUM_PATH || (fs.existsSync('/opt/pw-browsers') ? undefined : undefined);
-const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox', '--disable-dev-shm-usage', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] }).catch(e => { console.error('Could not start Chromium. Run `npx playwright install chromium` or set CHROMIUM_PATH.\n' + e.message); process.exit(1); });
+const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox', '--disable-dev-shm-usage', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--disable-accelerated-2d-canvas'] }).catch(e => { console.error('Could not start Chromium. Run `npx playwright install chromium` or set CHROMIUM_PATH.\n' + e.message); process.exit(1); });
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'beatframe-'));
 const total = f1 - f0, per = Math.ceil(total / workers); let doneFrames = 0; const t0 = Date.now();
 async function work(w) {
@@ -51,7 +53,7 @@ async function work(w) {
     await Promise.all(['400 40px Anton', '400 40px "Permanent Marker"', '600 40px Oswald', '400 40px Oswald', '400 40px "Bebas Neue"', '900 40px "Playfair Display"', 'italic 900 40px "Playfair Display"', '500 40px "DM Mono"', '800 40px Montserrat', '700 40px Caveat', '700 40px Cinzel', '700 40px "Space Grotesk"'].map(f => document.fonts.load(f)));
     const p = await (await fetch('/project.json')).json(); const imgs = {};
     const clips = {};
-    await Promise.all(p.assets.filter(x => x.url).map(async x => { const b = await (await fetch(x.url)).blob(); if (x.kind === 'clip') clips[x.id] = b; else imgs[x.id] = await createImageBitmap(b); }));
+    await Promise.all(p.assets.filter(x => x.url).map(async x => { const b = await (await fetch(x.url.startsWith('file:') ? '/asset/' + encodeURIComponent(x.url.slice(5)) : x.url)).blob(); if (x.kind === 'clip') clips[x.id] = b; else imgs[x.id] = await createImageBitmap(b); }));
     window.R = new window.BeatFrame.Renderer(document.getElementById('c'), { ...p, width: W, height: H }, imgs);
     if (Object.keys(clips).length) window.R.setClips(new window.BeatFrame.ClipBank(clips));
   }, [W, H]);
