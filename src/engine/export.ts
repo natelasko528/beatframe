@@ -2,6 +2,7 @@
 // MP4 (H.264 + AAC) where the browser supports it (Chrome, Edge, Safari); otherwise WebM (VP9 + Opus).
 import { Output, Mp4OutputFormat, WebMOutputFormat, BufferTarget, CanvasSource, AudioBufferSource, QUALITY_HIGH, QUALITY_VERY_HIGH, canEncodeVideo, canEncodeAudio } from 'mediabunny';
 import { Renderer } from './renderer';
+import { ClipBank } from './clips';
 import type { Project } from './types';
 
 export interface ExportOpts { width: number; height: number; quality: 'high' | 'very-high'; onProgress?: (p: number, frame: number, total: number) => void; signal?: AbortSignal }
@@ -12,10 +13,11 @@ export async function pickContainer(w: number, h: number): Promise<'mp4' | 'webm
   return avc && aac ? 'mp4' : 'webm';
 }
 
-export async function exportVideo(project: Project, images: Record<string, any>, audio: AudioBuffer, o: ExportOpts): Promise<ExportResult> {
+export async function exportVideo(project: Project, images: Record<string, any>, audio: AudioBuffer, o: ExportOpts, clips?: Record<string, Blob>): Promise<ExportResult> {
   const ext = await pickContainer(o.width, o.height);
   const canvas = document.createElement('canvas'); canvas.width = o.width; canvas.height = o.height;
   const r = new Renderer(canvas, { ...project, width: o.width, height: o.height }, images);
+  if (clips && Object.keys(clips).length) r.setClips(new ClipBank(clips));
   const output = new Output({ format: ext === 'mp4' ? new Mp4OutputFormat({ fastStart: 'in-memory' }) : new WebMOutputFormat(), target: new BufferTarget() });
   const video = new CanvasSource(canvas, { codec: ext === 'mp4' ? 'avc' : 'vp9', bitrate: o.quality === 'very-high' ? QUALITY_VERY_HIGH : QUALITY_HIGH, keyFrameInterval: 2 });
   output.addVideoTrack(video, { frameRate: project.fps });
@@ -26,7 +28,7 @@ export async function exportVideo(project: Project, images: Record<string, any>,
   const dur = project.analysis?.dur ?? audio.duration, total = Math.round(dur * project.fps);
   for (let f = 0; f < total; f++) {
     if (o.signal?.aborted) { await output.cancel(); throw new DOMException('Export cancelled', 'AbortError'); }
-    r.renderAt(f / project.fps);
+    await r.prepare(f / project.fps); r.renderAt(f / project.fps);
     await video.add(f / project.fps, 1 / project.fps);
     if (f % 15 === 0) { o.onProgress?.(f / total, f, total); await new Promise(res => setTimeout(res, 0)); }
   }

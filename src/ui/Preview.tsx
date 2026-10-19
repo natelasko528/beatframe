@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useStore } from '../store';
 import { Renderer } from '../engine/renderer';
+import { ClipBank } from '../engine/clips';
+import { clipBlobs } from '../pipeline';
 
 // Live preview: the same deterministic renderer as export, driven by the <audio> clock.
 export function Preview({ audioRef }: { audioRef: React.RefObject<HTMLAudioElement> }) {
@@ -14,7 +16,9 @@ export function Preview({ audioRef }: { audioRef: React.RefObject<HTMLAudioEleme
     const p = { ...project, width: PW, height: PH };
     if (!rr.current || rr.current.W !== PW || rr.current.H !== PH) rr.current = new Renderer(cv.current, p, images as any);
     else { rr.current.setProject(p); rr.current.imgs = images as any; }
-    rr.current.renderAt(useStore.getState().time);
+    rr.current.setClips(Object.keys(clipBlobs()).length ? new ClipBank(clipBlobs()) : null);
+    const t0 = useStore.getState().time; rr.current.prepare(t0).then(() => rr.current?.renderAt(t0));
+    rr.current.renderAt(t0);
   }, [project, images, PW, PH]);
 
   useEffect(() => {
@@ -24,6 +28,7 @@ export function Preview({ audioRef }: { audioRef: React.RefObject<HTMLAudioEleme
       if (a && rr.current) {
         const t = a.paused ? useStore.getState().time : a.currentTime;
         if (!a.paused) useStore.setState({ time: t });
+        rr.current.prepare(t);            // video clips decode in the background; the newest frame is drawn
         rr.current.renderAt(t);
       }
       raf = requestAnimationFrame(loop);

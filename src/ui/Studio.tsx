@@ -168,7 +168,7 @@ function ExportTab() {
     if (!audio) throw new Error('The song is missing. Start a new video.');
     if (!('VideoEncoder' in window)) throw new Error('This browser can’t encode video. Use Chrome, Edge or Safari.');
     ac.current = new AbortController(); setOut(null); setProg(0);
-    try { const r = await exportVideo(p, images, audio, { width: W, height: H, quality: 'very-high', onProgress: x => setProg(x), signal: ac.current.signal }); setOut({ url: URL.createObjectURL(r.blob), ext: r.ext }); }
+    try { const r = await exportVideo(p, images, audio, { width: W, height: H, quality: 'very-high', onProgress: x => setProg(x), signal: ac.current.signal }, A.clipBlobs()); setOut({ url: URL.createObjectURL(r.blob), ext: r.ext }); }
     finally { setProg(null); }
   });
   return (

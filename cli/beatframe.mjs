@@ -50,13 +50,15 @@ async function work(w) {
     await document.fonts.ready;
     await Promise.all(['400 40px Anton', '400 40px "Permanent Marker"', '600 40px Oswald', '400 40px Oswald', '400 40px "Bebas Neue"', '900 40px "Playfair Display"', 'italic 900 40px "Playfair Display"', '500 40px "DM Mono"', '800 40px Montserrat', '700 40px Caveat', '700 40px Cinzel', '700 40px "Space Grotesk"'].map(f => document.fonts.load(f)));
     const p = await (await fetch('/project.json')).json(); const imgs = {};
-    await Promise.all(p.assets.filter(x => x.url).map(async x => { imgs[x.id] = await createImageBitmap(await (await fetch(x.url)).blob()); }));
+    const clips = {};
+    await Promise.all(p.assets.filter(x => x.url).map(async x => { const b = await (await fetch(x.url)).blob(); if (x.kind === 'clip') clips[x.id] = b; else imgs[x.id] = await createImageBitmap(b); }));
     window.R = new window.BeatFrame.Renderer(document.getElementById('c'), { ...p, width: W, height: H }, imgs);
+    if (Object.keys(clips).length) window.R.setClips(new window.BeatFrame.ClipBank(clips));
   }, [W, H]);
   const seg = path.join(tmp, `seg${w}.mp4`);
   const ff = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(fps), '-c:v', 'mjpeg', '-i', '-', '-c:v', 'libx264', '-preset', 'medium', '-crf', crf, '-pix_fmt', 'yuv420p', seg], { stdio: ['pipe', 'inherit', 'inherit'] });
   for (let f = a; f < b; f++) {
-    const d = await pg.evaluate(t => { window.R.renderAt(t); return document.getElementById('c').toDataURL('image/jpeg', 0.94); }, f / fps);
+    const d = await pg.evaluate(async t => { await window.R.prepare(t); window.R.renderAt(t); return document.getElementById('c').toDataURL('image/jpeg', 0.94); }, f / fps);
     if (!ff.stdin.write(Buffer.from(d.split(',')[1], 'base64'))) await new Promise(r => ff.stdin.once('drain', r));
     if (++doneFrames % 60 === 0) { const el = (Date.now() - t0) / 1000; process.stdout.write(`\r${(100 * doneFrames / total).toFixed(1)}%  ${(doneFrames / el).toFixed(1)} fps  eta ${Math.round((total - doneFrames) / (doneFrames / el))}s   `); }
   }

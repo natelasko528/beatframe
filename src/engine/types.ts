@@ -37,7 +37,7 @@ export interface Scene {
   custom?: boolean;                  // user wrote the full prompt by hand; never overwrite it
   status?: 'idle' | 'queued' | 'generating' | 'done' | 'error'; error?: string;
 }
-export interface Asset { id: string; name: string; kind: 'image' | 'avatar' | 'location' | 'cover' | 'depth'; url: string }
+export interface Asset { id: string; name: string; kind: 'image' | 'avatar' | 'location' | 'cover' | 'depth' | 'clip'; url: string }
 
 export interface Style {
   name: string;

@@ -10,6 +10,7 @@ import { Renderer } from './engine/renderer';
 import { transcribe } from './providers/transcribe';
 import { estimateDepth } from './providers/depth';
 import { depthId } from './engine/motion';
+import { clipId } from './engine/clips';
 import { generateImage, shrink, pricePerImage, type ImageModel } from './providers/images';
 import { askJSON, geminiLyrics, defaultAi, usage, type AiModel } from './providers/ai';
 import * as db from './db';
@@ -309,6 +310,14 @@ export function planVideo() {
 }
 export function replan() { planVideo(); S().update(p => capScenes(p, p.plan.sceneBudget ?? 16)); refreshPrompts(); autosave(); }
 
+/** Attach a video clip (real motion, e.g. Wan 2.2 image-to-video) to a scene. The still stays as the fallback/poster. */
+export async function addClip(sceneId: string, file: Blob) {
+  const id = clipId(sceneId);
+  S().set({ blobs: { ...S().blobs, [id]: file } });
+  S().update(p => { p.assets = p.assets.filter(a => a.id !== id); p.assets.push({ id, name: `${sceneId} clip`, kind: 'clip', url: '' }); });
+  await db.put('asset:' + id, file); autosave();
+}
+export const clipBlobs = () => { const st = S(); return Object.fromEntries(st.project.assets.filter(a => a.kind === 'clip' && st.blobs[a.id]).map(a => [a.id, st.blobs[a.id]])); };
 export async function addAsset(file: Blob, kind: 'image' | 'avatar' | 'location' | 'cover' | 'depth', id?: string, name = 'image') {
   const aid = id ?? newId(kind[0]);
   const bmp = await createImageBitmap(file);
@@ -387,7 +396,7 @@ export async function restore() {
   const audio = await db.get<File>('audio');
   if (audio) { const { buffer } = await decodeForAnalysis(audio); S().set({ audioFile: audio, audioBuffer: buffer, audioUrl: URL.createObjectURL(audio) }); }
   const images: Record<string, ImageBitmap> = {}, blobs: Record<string, Blob> = {};
-  for (const a of p.assets) { const b = await db.get<Blob>('asset:' + a.id); if (b) { blobs[a.id] = b; images[a.id] = await createImageBitmap(b); } }
+  for (const a of p.assets) { const b = await db.get<Blob>('asset:' + a.id); if (b) { blobs[a.id] = b; if (a.kind !== 'clip') images[a.id] = await createImageBitmap(b); } }
   S().set({ images, blobs, screen: 'studio' }); return true;
 }
 const toDataUrl = (b: Blob) => new Promise<string>(r => { const fr = new FileReader(); fr.onload = () => r(fr.result as string); fr.readAsDataURL(b); });
@@ -398,7 +407,7 @@ export async function exportProjectFile(): Promise<Blob> {
 }
 export async function importProjectFile(f: File) {
   const p: Project = JSON.parse(await f.text()); const images: Record<string, ImageBitmap> = {}, blobs: Record<string, Blob> = {};
-  for (const a of p.assets) if (a.url.startsWith('data:')) { const b = await (await fetch(a.url)).blob(); blobs[a.id] = b; images[a.id] = await createImageBitmap(b); await db.put('asset:' + a.id, b); a.url = ''; }
+  for (const a of p.assets) if (a.url.startsWith('data:')) { const b = await (await fetch(a.url)).blob(); blobs[a.id] = b; if (a.kind !== 'clip') images[a.id] = await createImageBitmap(b); await db.put('asset:' + a.id, b); a.url = ''; }
   S().set({ project: { ...newProject(), ...p }, images, blobs, screen: 'studio' }); autosave();
 }
 export async function resetProject() {

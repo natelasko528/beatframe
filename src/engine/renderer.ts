@@ -4,6 +4,7 @@
 import type { Project, Shot, Line, LetterCue } from './types';
 import { FONT_WEIGHT } from './styles';
 import { DepthMotion, depthId } from './motion';
+import { ClipBank, clipId, clipTime } from './clips';
 
 type Img = CanvasImageSource & { width: number; height: number };
 const clamp = (x: number, a = 0, b = 1) => Math.max(a, Math.min(b, x));
@@ -27,6 +28,7 @@ export class Renderer {
   W: number; H: number; u: number; vertical: boolean;
   private bloom: any; private bloom2: any; private mask: any; private mctx: Ctx; private grain: any[] = []; private glow: any;
   private kicksArr: number[]; private letterTimes: number[]; private motion: DepthMotion | null | undefined;
+  clips: ClipBank | null = null;
 
   constructor(canvas: HTMLCanvasElement | OffscreenCanvas, project: Project, images: Record<string, Img>) {
     this.cv = canvas; this.p = project; this.imgs = images;
@@ -42,6 +44,14 @@ export class Renderer {
     this.glow = mk(64, 64); { const g = this.glow.getContext('2d') as Ctx; const r = g.createRadialGradient(32, 32, 0, 32, 32, 32); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 64); }
     this.kicksArr = project.analysis?.kicks ?? [];
     this.letterTimes = project.letters.map(l => l.t - 0.05);
+  }
+  setClips(bank: ClipBank | null) { this.clips = bank; }
+  /** Decode the video-clip frames needed at time t (current shot and the one it may be transitioning from). Await before renderAt(t) for frame-exact output. */
+  async prepare(t: number) {
+    const bank = this.clips; if (!bank) return;
+    const s = this.shotAt(t); if (!s) return; const i = this.p.shots.indexOf(s);
+    const need = [s, t - s.from < 0.5 ? this.p.shots[i - 1] : undefined].filter(Boolean) as Shot[];
+    await Promise.all(need.map(async x => { const id = clipId(x.img); if (!bank.has(id)) return; const d = await bank.durationOf(id); await bank.seek(id, clipTime(t - x.from, x.to - x.from, d)); }));
   }
   setProject(p: Project) { this.p = p; this.kicksArr = p.analysis?.kicks ?? []; this.letterTimes = p.letters.map(l => l.t - 0.05); }
 
@@ -73,10 +83,12 @@ export class Renderer {
     const kick = this.kick(t);
     const bump = 1 + st.motion.kickZoom * kick * (this.big(t) ? 1.6 : 0.6);
     const punch = 1 + (s.drop ? 0.14 : s.flash ? 0.07 : st.motion.cutPunch) * Math.pow(clamp(1 - a / (s.drop ? 0.38 : 0.22)), 2);
-    const img = this.imgs[s.img];
+    const clip = this.clips?.frame(clipId(s.img));
+    const img = (clip as Img | undefined) ?? this.imgs[s.img];
     if (s.flash) (c as any).filter = `contrast(1.25) saturate(1.2) brightness(${1 + 0.5 * clamp(1 - a / 0.12)})`;
     const whip = s.whip && !s.drop ? clamp(1 - a / 0.24) : 0;
     if (whip > 0) { const wx = easeOut(whip) * 22; for (let i = 0; i < 5; i++) this.cover(c, img, z * bump * punch, x + wx + i * 3 * whip, y, 0.28); }
+    else if (clip) this.cover(c, img, (1 + (z - 1) * 0.35) * bump * punch, x * 0.35, y * 0.35);   // real motion: keep only a light push on top
     else if (!this.living(c, s, img, z * bump * punch, x, y, t, k, kick)) this.cover(c, img, z * bump * punch, x, y);
     (c as any).filter = 'none';
   }
