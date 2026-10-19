@@ -1,0 +1,69 @@
+{
+    "concept": "No Worries Weather: Tony Mack clocks out of a Milwaukee winter and lands in island time \u2014 sun, sea, gold and a beach that never stops dancing.",
+    "world": "A Caribbean island from sunrise villa to moonlit beach party, bookended by cold Milwaukee grind.",
+    "mood": "sun-drenched warm gold, turquoise and teal water, coral-pink accents, soft glow and haze",
+    "timeOfDay": "morning sun into golden hour into moonlit night",
+    "wardrobe": "open linen and silk shirts, gold Cuban chain, gold watch, wayfarer shades, bare feet",
+    "motifs": [
+        "gold chain",
+        "turquoise water",
+        "palm trees",
+        "gold watch / island time",
+        "sunsets"
+    ],
+    "locations": [
+        "white-sand beach",
+        "villa",
+        "pier",
+        "yacht",
+        "beach bar",
+        "bonfire party"
+    ],
+    "palette": {
+        "background": "#062a30",
+        "text": "#fff8ec",
+        "accent": "#ffc857",
+        "accent2": "#19c3b1",
+        "hot": "#ff7a59",
+        "sign": "#19c3b1"
+    },
+    "fonts": {
+        "lyric": "Montserrat",
+        "hot": "Caveat",
+        "display": "Anton",
+        "small": "Space Grotesk"
+    },
+    "lyrics": {
+        "layout": "lower-left",
+        "reveal": "rise",
+        "caps": true,
+        "size": 80
+    },
+    "energy": 0.62,
+    "grade": {
+        "bloom": 0.3,
+        "grain": 0.07,
+        "vignette": 0.45,
+        "lightLeak": 0.16,
+        "letterbox": 92,
+        "colourSplitOnDrops": false
+    },
+    "particles": "dust",
+    "transitions": {
+        "section": "light-sweep",
+        "drop": "flash"
+    },
+    "graphics": {
+        "placeSigns": false,
+        "locationCaptions": false,
+        "shoutStamps": false,
+        "titleOnDrops": true,
+        "opener": "classic",
+        "letterbox_credits": false
+    },
+    "titleCard": {
+        "tagline": "Palm trees, light breeze, we gon' vibe forever",
+        "definition": []
+    },
+    "why": "Island song: warm gold + turquoise palette, loose handwritten hot words, relaxed rise reveals, light sweeps instead of hard flashes, cinematic bars kept."
+}
