@@ -271,6 +271,8 @@ export async function retimeLyrics() {
   applyLines(parsed.length ? alignLyrics(parsed, words, p.analysis!.dur, { dropUnsung: true }) : linesFromTranscript(words, p.analysis!.dur));
   status('', false); autosave();
 }
+/** Time the pasted lyrics against a transcript you already have (e.g. from an external Whisper run). */
+export function alignWords(words: AsrWord[]) { applyLines(alignLyrics(parseLyrics(S().project.lyricsRaw), words, S().project.analysis!.dur, { dropUnsung: true })); }
 export function alignSpread(start: number, end: number) { applyLines(spreadLines(parseLyrics(S().project.lyricsRaw), start, end)); }
 export function alignTaps(taps: number[]) { applyLines(linesFromTaps(parseLyrics(S().project.lyricsRaw), taps, S().project.analysis!.dur)); }
 export function alignLrc(lrc: string) { applyLines(linesFromLRC(lrc, parseLyrics(S().project.lyricsRaw), S().project.analysis!.dur)); }
