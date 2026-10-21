@@ -8,6 +8,8 @@ import { ClipBank, clipId, clipTime } from './clips';
 
 type Img = CanvasImageSource & { width: number; height: number };
 const clamp = (x: number, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+// Where to crop an image that's taller than the frame: 0.5 = centre, lower keeps more of the top (faces live in the upper third).
+const V_ANCHOR = 0.3;
 const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
 const easeOut = (k: number) => 1 - Math.pow(1 - k, 3);
 const easeIn = (k: number) => k * k * k;
@@ -75,7 +77,7 @@ export class Renderer {
   private cover(c: Ctx, img: Img | undefined, z: number, xp: number, yp: number, alpha = 1) {
     if (!img) { c.fillStyle = this.p.style.palette.bg; c.fillRect(0, 0, this.W, this.H); return; }
     const s = Math.max(this.W / img.width, this.H / img.height) * z, w = img.width * s, h = img.height * s;
-    c.globalAlpha = alpha; c.drawImage(img, (this.W - w) / 2 + (xp / 100) * this.W, (this.H - h) / 2 + (yp / 100) * this.H, w, h); c.globalAlpha = 1;
+    c.globalAlpha = alpha; c.drawImage(img, (this.W - w) / 2 + (xp / 100) * this.W, (this.H - h) * V_ANCHOR + (yp / 100) * this.H, w, h); c.globalAlpha = 1;
   }
   private paintShot(c: Ctx, s: Shot, t: number) {
     const st = this.p.style, len = s.to - s.from, a = t - s.from, k = easeIO(clamp(a / Math.max(len, 0.1)));
@@ -99,7 +101,7 @@ export class Renderer {
     if (this.motion === undefined) this.motion = DepthMotion.create(this.W, this.H);
     if (!this.motion) return false;
     const sc = Math.max(this.W / img.width, this.H / img.height) * z, w = img.width * sc, h = img.height * sc;
-    const x0 = (this.W - w) / 2 + (xp / 100) * this.W, y0 = (this.H - h) / 2 + (yp / 100) * this.H;
+    const x0 = (this.W - w) / 2 + (xp / 100) * this.W, y0 = (this.H - h) * V_ANCHOR + (yp / 100) * this.H;
     const seed = Math.round(s.from * 1000) + s.img.length * 7, ang = hash(seed) * Math.PI * 2, sign = hash(seed + 3) > 0.5 ? 1 : -1;
     const travel = (k - 0.5) * 0.13 * strength;                  // camera slides ~10% of the frame across a shot, centred so cuts stay clean
     const cam: [number, number] = [Math.cos(ang) * travel, Math.sin(ang) * travel * 0.45];
