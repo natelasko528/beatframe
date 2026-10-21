@@ -28,11 +28,13 @@ export interface Shot {
 export interface Sign { t: number; text: string; red?: boolean }        // keyword / street-sign pops
 export interface LetterCue { t: number; ch: string; word: string; end: number; kind: 'verse' | 'bridge' }
 
+export type SceneFx = 'rain' | 'snow' | 'embers' | 'dust' | 'rays' | 'flare' | 'petals' | 'sparks';
 export interface Scene {
   id: string; prompt: string; withAvatar: boolean; refIds: string[];   // refIds: avatar/location asset ids
   lyric?: string; word?: string;     // what the scene plays under (from the planner)
   idea?: string;                     // short visual idea (AI scene writer); expanded into the image prompt by code
   location?: string; shot?: string;  // where it happens / shot size (continuity)
+  fx?: SceneFx[];                    // per-scene effects layered on top of the image (rain on the hurt, snow on the release, rays on the hope…)
   verdict?: { pass: boolean; score: number; issues: string[] };   // AI image check
   custom?: boolean;                  // user wrote the full prompt by hand; never overwrite it
   status?: 'idle' | 'queued' | 'generating' | 'done' | 'error'; error?: string;

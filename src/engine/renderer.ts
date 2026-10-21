@@ -351,15 +351,62 @@ export class Renderer {
   }
 
   // ---------- atmosphere + grade ----------
-  private drawParticles(t: number) {
-    const c = this.ctx, mode = this.p.style.particles, W = this.W, H = this.H, u = this.u; if (mode === 'none') return;
-    c.save(); c.globalCompositeOperation = mode === 'embers' ? 'lighter' : 'screen';
+  private drawParticles(t: number, mode: string = this.p.style.particles, alpha = 1) {
+    const c = this.ctx, W = this.W, H = this.H, u = this.u; if (mode === 'none') return;
+    if (mode === 'rays' || mode === 'flare' || mode === 'petals' || mode === 'sparks') return this.drawFx(t, mode, alpha);
+    c.save(); c.globalAlpha = alpha;
+    c.globalCompositeOperation = mode === 'embers' ? 'lighter' : 'screen';
     if (mode === 'rain') { c.lineWidth = 1.4 * u; for (let i = 0; i < 70; i++) { const sp = 1.1 + hash(i) * 0.9, ph = (t * sp + hash(i + 3)) % 1, x = hash(i + 7) * W * 1.2 - 0.1 * W + ph * 140 * u, y = ph * (H + 200 * u) - 100 * u; c.strokeStyle = `rgba(190,215,235,${0.07 + 0.08 * hash(i + 9)})`; c.beginPath(); c.moveTo(x, y); c.lineTo(x - 14 * u, y - 46 * u); c.stroke(); } }
     else if (mode === 'embers') { for (let i = 0; i < 26; i++) { const life = 1.8 + hash(i + 11) * 2.6, ph = ((t + hash(i) * life) % life) / life; const x = (hash(i + 2) + Math.sin(t * 2 + i) * 0.012) * W, y = (1.04 - ph * (0.45 + hash(i + 5) * 0.45)) * H; const s = (2 + hash(i + 6) * 3) * u, a = 0.7 * (1 - ph) * (0.6 + 0.4 * Math.sin(t * 20 + i)); c.fillStyle = `rgba(255,${(150 + hash(i + 8) * 90) | 0},60,${a})`; c.fillRect(x, y, s, s); c.globalAlpha = a * 0.4; c.drawImage(this.glow, x - s * 3, y - s * 3, s * 6, s * 6); c.globalAlpha = 1; } }
     else if (mode === 'snow') { for (let i = 0; i < 90; i++) { const sp = 0.08 + hash(i) * 0.1, ph = (t * sp + hash(i + 3)) % 1, x = (hash(i + 7) + Math.sin(t * 0.8 + i) * 0.01) * W, y = ph * (H + 40) - 20, s = (1.5 + hash(i + 4) * 3) * u; c.fillStyle = `rgba(255,255,255,${0.35 + 0.4 * hash(i + 2)})`; c.beginPath(); c.arc(x, y, s, 0, 7); c.fill(); } }
     else if (mode === 'dust') { for (let i = 0; i < 40; i++) { const x = (hash(i + 1) + 0.02 * Math.sin(t * 0.3 + i)) * W, y = (hash(i + 2) + 0.02 * Math.cos(t * 0.25 + i * 2)) * H, s = (1 + hash(i + 3) * 2.5) * u; c.globalAlpha = 0.25 + 0.25 * Math.sin(t * 2 + i); c.drawImage(this.glow, x - s * 3, y - s * 3, s * 6, s * 6); } c.globalAlpha = 1; }
     c.restore();
   }
+  /** Cinematic overlays chosen per scene: god rays, anamorphic flare sweeps, falling rose petals, rising sparks. Deterministic in t. */
+  private drawFx(t: number, mode: string, alpha = 1) {
+    const c = this.ctx, W = this.W, H = this.H, u = this.u;
+    c.save(); c.globalAlpha = alpha;
+    if (mode === 'rays') {
+      c.globalCompositeOperation = 'screen';
+      const ox = W * 0.18, oy = -H * 0.15;
+      for (let i = 0; i < 9; i++) {
+        const a = 0.35 + i * 0.11 + Math.sin(t * 0.25 + i * 1.7) * 0.03, w = 0.035 + 0.03 * hash(i + 4), len = H * 1.9;
+        const g = c.createLinearGradient(ox, oy, ox + Math.cos(a) * len, oy + Math.sin(a) * len);
+        const k = (0.05 + 0.06 * hash(i)) * (0.75 + 0.25 * Math.sin(t * 0.7 + i));
+        g.addColorStop(0, `rgba(255,214,150,${k})`); g.addColorStop(1, 'rgba(255,214,150,0)');
+        c.fillStyle = g; c.beginPath(); c.moveTo(ox, oy);
+        c.lineTo(ox + Math.cos(a - w) * len, oy + Math.sin(a - w) * len); c.lineTo(ox + Math.cos(a + w) * len, oy + Math.sin(a + w) * len); c.closePath(); c.fill();
+      }
+    } else if (mode === 'flare') {
+      c.globalCompositeOperation = 'lighter';
+      const ph = (t * 0.09) % 1, x = (-0.2 + ph * 1.4) * W, y = H * (0.3 + 0.08 * Math.sin(t * 0.2));
+      const g = c.createLinearGradient(x - W * 0.5, y, x + W * 0.5, y);
+      g.addColorStop(0, 'rgba(120,170,255,0)'); g.addColorStop(0.5, 'rgba(170,205,255,0.32)'); g.addColorStop(1, 'rgba(120,170,255,0)');
+      c.fillStyle = g; c.fillRect(x - W * 0.5, y - 2.2 * u, W, 4.4 * u);
+      c.globalAlpha = alpha * 0.55; c.drawImage(this.glow, x - 70 * u, y - 70 * u, 140 * u, 140 * u);
+      for (let i = 1; i <= 4; i++) { const gx = W / 2 + (W / 2 - x) * (0.35 * i), gy = H / 2 + (H / 2 - y) * (0.35 * i), r = (10 + 14 * i) * u; c.globalAlpha = alpha * 0.12; c.drawImage(this.glow, gx - r, gy - r, r * 2, r * 2); }
+    } else if (mode === 'petals') {
+      for (let i = 0; i < 26; i++) {
+        const sp = 0.06 + hash(i) * 0.07, ph = (t * sp + hash(i + 3)) % 1, x = (hash(i + 7) + Math.sin(t * 0.9 + i) * 0.04 + ph * 0.12) * W, y = ph * (H + 80 * u) - 40 * u;
+        const s = (7 + hash(i + 4) * 8) * u, rot = t * (0.8 + hash(i + 5)) + i;
+        c.save(); c.translate(x, y); c.rotate(rot); c.scale(1, 0.55 + 0.45 * Math.sin(t * 2.3 + i));
+        c.fillStyle = `rgba(${170 + (hash(i + 9) * 50) | 0},${20 + (hash(i + 1) * 30) | 0},${40 + (hash(i + 2) * 30) | 0},0.85)`;
+        c.beginPath(); c.ellipse(0, 0, s, s * 0.62, 0, 0, Math.PI * 2); c.fill(); c.restore();
+      }
+    } else if (mode === 'sparks') {
+      c.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 60; i++) {
+        const life = 0.9 + hash(i + 11) * 1.4, ph = ((t + hash(i) * life) % life) / life;
+        const x = (0.5 + (hash(i + 2) - 0.5) * 0.9 + (hash(i + 6) - 0.5) * ph * 0.25) * W, y = (0.95 - ph * (0.5 + hash(i + 5) * 0.5) + ph * ph * 0.25) * H;
+        const s = (1.5 + hash(i + 6) * 2.5) * u, a = (1 - ph) * (0.7 + 0.3 * Math.sin(t * 30 + i));
+        c.fillStyle = `rgba(255,${(170 + hash(i + 8) * 70) | 0},90,${a})`; c.fillRect(x, y, s, s * 2.5);
+        c.globalAlpha = alpha * a * 0.35; c.drawImage(this.glow, x - s * 4, y - s * 4, s * 8, s * 8); c.globalAlpha = alpha;
+      }
+    }
+    c.restore();
+  }
+  private sceneFx(img: string) { return this.p.scenes.find(s => s.id === img)?.fx ?? []; }
+
   private grade(t: number, f: number) {
     const c = this.ctx, st = this.p.style, G = st.grade, P = st.palette, W = this.W, H = this.H, u = this.u, k = this.kick(t);
     if (G.bloom > 0) {
@@ -410,6 +457,7 @@ export class Renderer {
       if (shot.kind === 'open') this.drawOpen(t);
       if (st.features.captions) this.drawCaption(shot, t);
       this.drawParticles(t);
+      { const a = clamp((t - shot.from) / 0.25); for (const fx of this.sceneFx(shot.img)) this.drawParticles(t, fx, a); }
       if (st.features.signs) this.drawSigns(t, shot);
       if (st.features.bigLetters) this.drawBigLetter(t);
       this.drawIntroTypeOn(t);
