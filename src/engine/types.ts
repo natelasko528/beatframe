@@ -34,12 +34,13 @@ export interface Scene {
   lyric?: string; word?: string;     // what the scene plays under (from the planner)
   idea?: string;                     // short visual idea (AI scene writer); expanded into the image prompt by code
   location?: string; shot?: string;  // where it happens / shot size (continuity)
+  anchor?: [number, number];        // layered parallax: the subject's head (0..1 of the image); camera and subject zoom pivot here so the face stays in frame
   fx?: SceneFx[];                    // per-scene effects layered on top of the image (rain on the hurt, snow on the release, rays on the hope…)
   verdict?: { pass: boolean; score: number; issues: string[] };   // AI image check
   custom?: boolean;                  // user wrote the full prompt by hand; never overwrite it
   status?: 'idle' | 'queued' | 'generating' | 'done' | 'error'; error?: string;
 }
-export interface Asset { id: string; name: string; kind: 'image' | 'avatar' | 'location' | 'cover' | 'depth' | 'clip'; url: string }
+export interface Asset { id: string; name: string; kind: 'image' | 'avatar' | 'location' | 'cover' | 'depth' | 'clip' | 'layer'; url: string }
 
 export interface Style {
   name: string;

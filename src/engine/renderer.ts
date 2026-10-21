@@ -29,7 +29,7 @@ export class Renderer {
   p: Project; cv: HTMLCanvasElement | OffscreenCanvas; ctx: Ctx; imgs: Record<string, Img>;
   W: number; H: number; u: number; vertical: boolean;
   private bloom: any; private bloom2: any; private mask: any; private mctx: Ctx; private grain: any[] = []; private glow: any;
-  private kicksArr: number[]; private letterTimes: number[]; private motion: DepthMotion | null | undefined;
+  private kicksArr: number[]; private hits: { t: number; a: number; d: number }[] = []; private hitT: number[] = []; private letterTimes: number[]; private motion: DepthMotion | null | undefined;
   clips: ClipBank | null = null;
 
   constructor(canvas: HTMLCanvasElement | OffscreenCanvas, project: Project, images: Record<string, Img>) {
@@ -44,7 +44,7 @@ export class Renderer {
       g.putImageData(id, 0, 0); this.grain.push(c);
     }
     this.glow = mk(64, 64); { const g = this.glow.getContext('2d') as Ctx; const r = g.createRadialGradient(32, 32, 0, 32, 32, 32); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 64); }
-    this.kicksArr = project.analysis?.kicks ?? [];
+    this.kicksArr = project.analysis?.kicks ?? []; this.buildHits();
     this.letterTimes = project.letters.map(l => l.t - 0.05);
   }
   setClips(bank: ClipBank | null) { this.clips = bank; }
@@ -55,11 +55,33 @@ export class Renderer {
     const need = [s, t - s.from < 0.5 ? this.p.shots[i - 1] : undefined].filter(Boolean) as Shot[];
     await Promise.all(need.map(async x => { const id = clipId(x.img); if (!bank.has(id)) return; const d = await bank.durationOf(id); await bank.seek(id, clipTime(t - x.from, x.to - x.from, d)); }));
   }
-  setProject(p: Project) { this.p = p; this.kicksArr = p.analysis?.kicks ?? []; this.letterTimes = p.letters.map(l => l.t - 0.05); }
+  setProject(p: Project) { this.p = p; this.kicksArr = p.analysis?.kicks ?? []; this.buildHits(); this.letterTimes = p.letters.map(l => l.t - 0.05); }
 
   // ---------- timing helpers ----------
   private pulse(a: number[], t: number, d: number) { const i = lastBefore(a, t); return i < 0 ? 0 : Math.exp(-(t - a[i]) / d); }
-  kick(t: number) { return this.pulse(this.kicksArr, t, 0.12); }
+  /** Clean drum hits: at most one per beat, only where a kick or snare actually lands on it (no hi-hat chatter).
+   *  Snares hit harder than kicks, quiet passages and verses softer, drops hardest. */
+  private buildHits() {
+    const A = this.p.analysis; this.hits = []; if (!A) return;
+    const near = (arr: number[], b: number) => { const i = lastBefore(arr, b + 0.06); return i >= 0 && b - arr[i] <= 0.06 ? true : false; };
+    const rms = A.rms ?? [], sorted = [...rms].sort((x, y) => x - y), p90 = sorted[Math.floor(sorted.length * 0.9)] || 1;
+    A.beats.forEach((b, i) => {
+      const k = near(this.kicksArr, b), s = near(A.snares ?? [], b); if (!k && !s) return;
+      const loud = clamp((rms[Math.floor(b / (A.curveDt || 0.1))] ?? p90) / p90, 0.3, 1);
+      const drop = this.p.drops.some(d => Math.abs(d - b) < 0.12);
+      const a = (s ? 1 : 0.7) * loud * (drop ? 1.7 : this.big(b) ? 1 : 0.7);
+      this.hits.push({ t: b, a, d: hash(i * 3.1) > 0.5 ? 1 : -1 });
+    });
+    this.hitT = this.hits.map(h => h.t);
+  }
+  /** Drum envelope 0..1 (decays after each clean hit). Drives every beat-synced pulse. */
+  kick(t: number) { const i = lastBefore(this.hitT, t); return i < 0 ? 0 : this.hits[i].a * Math.exp(-(t - this.hits[i].t) / 0.12); }
+  /** Whole-frame camera jolt on each hit: instant knock, then a damped spring settle (~0.35 s). */
+  jolt(t: number) {
+    const i = lastBefore(this.hitT, t); if (i < 0) return { x: 0, y: 0, z: 1 };
+    const h = this.hits[i], dt = t - h.t, e = Math.exp(-dt / 0.11), spring = e * Math.cos(2 * Math.PI * 3 * dt), A = h.a * (this.p.style.motion.shake / 3) * this.u;
+    return { x: 6 * A * h.d * spring, y: 18 * A * spring, z: 1 + 0.022 * h.a * (this.p.style.motion.shake / 3) * e };
+  }
   section(t: number) { let s = this.p.sections[0] ?? ['open', 0]; for (const x of this.p.sections) if (t >= x[1]) s = x; return s; }
   big(t: number) { return /hook|bridge|chant/.test(this.section(t)[0]); }
   shotAt(t: number): Shot { const s = this.p.shots; let lo = 0, hi = s.length - 1, r = 0; while (lo <= hi) { const m = (lo + hi) >> 1; if (s[m].from <= t) { r = m; lo = m + 1; } else hi = m - 1; } return s[r]; }
@@ -83,16 +105,38 @@ export class Renderer {
     const st = this.p.style, len = s.to - s.from, a = t - s.from, k = easeIO(clamp(a / Math.max(len, 0.1)));
     const z = lerp(s.z0, s.z1, k), x = lerp(s.x0, s.x1, k), y = lerp(s.y0, s.y1, k);
     const kick = this.kick(t);
-    const bump = 1 + st.motion.kickZoom * kick * (this.big(t) ? 1.6 : 0.6);
-    const punch = 1 + (s.drop ? 0.14 : s.flash ? 0.07 : st.motion.cutPunch) * Math.pow(clamp(1 - a / (s.drop ? 0.38 : 0.22)), 2);
+    const layered = !!this.imgs[`${s.img}~L0`];
+    const bump = layered ? 1 : 1 + st.motion.kickZoom * kick * (this.big(t) ? 1.6 : 0.6);   // layered scenes: the beat moves the whole frame instead
+    const punch = 1 + (s.drop ? 0.14 : s.flash ? 0.07 : layered ? 0 : st.motion.cutPunch) * Math.pow(clamp(1 - a / (s.drop ? 0.38 : 0.22)), 2);
     const clip = this.clips?.frame(clipId(s.img));
     const img = (clip as Img | undefined) ?? this.imgs[s.img];
     if (s.flash) (c as any).filter = `contrast(1.25) saturate(1.2) brightness(${1 + 0.5 * clamp(1 - a / 0.12)})`;
     const whip = s.whip && !s.drop ? clamp(1 - a / 0.24) : 0;
     if (whip > 0) { const wx = easeOut(whip) * 22; for (let i = 0; i < 5; i++) this.cover(c, img, z * bump * punch, x + wx + i * 3 * whip, y, 0.28); }
     else if (clip) this.cover(c, img, (1 + (z - 1) * 0.35) * bump * punch, x * 0.35, y * 0.35);   // real motion: keep only a light push on top
-    else if (!this.living(c, s, img, z * bump * punch, x, y, t, k, kick)) this.cover(c, img, z * bump * punch, x, y);
+    else if (!this.layered(c, s, z * punch, x, y, clamp(a / Math.max(len, 0.1))) && !this.living(c, s, img, z * bump * punch, x, y, t, k, kick)) this.cover(c, img, z * bump * punch, x, y);
     (c as any).filter = 'none';
+  }
+  /** Layered 2.5D parallax: far / mid / subject planes, each rigid, gliding at its own speed and zoom from the first frame of the shot to the last.
+   *  Subject and mid layer nearly share the lateral move (so contact points barely skate) and pull apart in zoom around the subject's head. */
+  private layered(c: Ctx, s: Shot, z: number, xp: number, yp: number, k: number) {
+    const L = [0, 1, 2].map(i => this.imgs[`${s.img}~L${i}`]); if (!L[0] || !L[1] || !L[2]) return false;
+    const strength = this.p.style.motion.depth ?? 0.8, an = this.p.scenes.find(x => x.id === s.img)?.anchor ?? [0.5, 0.4];
+    const iw = L[0].width, ih = L[0].height, s1 = Math.max(this.W / iw, this.H / ih) * 1.08, w1 = iw * s1, h1 = ih * s1, w = w1 * z, h = h1 * z;
+    // camera push pivots on the subject's head: it holds its place on screen while everything else grows around it (clamped so the frame stays covered)
+    const fx = (this.W - w1) / 2 + an[0] * w1, fy = (this.H - h1) * V_ANCHOR + an[1] * h1, mx = 0.03 * this.W, my = 0.02 * this.H;
+    const x0 = clamp(fx - an[0] * w, this.W - w + mx, -mx) + (xp / 100) * this.W, y0 = clamp(fy - an[1] * h, this.H - h + my, -my) + (yp / 100) * this.H;
+    const seed = Math.round(s.from * 1000) + s.img.length * 7, ang = (hash(seed) - 0.5) * 0.7 + (hash(seed + 1) > 0.5 ? 0 : Math.PI);
+    const kk = 0.5 * k + 0.5 * (0.5 - 0.5 * Math.cos(Math.PI * k)), m = kk - 0.5;        // near-constant glide, softened at the ends
+    const T = 0.045 * this.W * strength, dx = Math.cos(ang) * T * m, dy = Math.sin(ang) * T * m * 0.5;
+    const ax = x0 + an[0] * w, ay = y0 + an[1] * h;
+    const plan: [number, number][] = [[0.35, 0], [1, 0.025 * strength], [1.12, 0.065 * strength]];   // [lateral speed, zoom gained over the shot]
+    plan.forEach(([par, zg], i) => {
+      c.save(); c.translate(dx * par, dy * par);
+      const zz = 1 + zg * kk; c.translate(ax, ay); c.scale(zz, zz); c.translate(-ax, -ay);
+      c.drawImage(L[i] as any, x0, y0, w, h); c.restore();
+    });
+    return true;
   }
   /** Living still: depth parallax + water/foliage motion. Returns false when it can't run (no depth map / no WebGL). */
   private living(c: Ctx, s: Shot, img: Img | undefined, z: number, xp: number, yp: number, t: number, k: number, kick: number) {
@@ -451,8 +495,8 @@ export class Renderer {
     c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; (c as any).filter = 'none'; c.shadowBlur = 0; (c as any).letterSpacing = '0px';
     c.fillStyle = '#000'; c.fillRect(0, 0, this.W, this.H);
     if (!this.p.shots.length) return;
-    const shot = this.shotAt(t), shake = (this.big(t) ? st.motion.shake : st.motion.shake * 0.25) * this.kick(t) * this.u;
-    c.save(); c.translate(Math.sin(t * 91) * shake, Math.cos(t * 73) * shake);
+    const shot = this.shotAt(t), J = this.jolt(t);
+    c.save(); c.translate(this.W / 2 + J.x, this.H / 2 + J.y); c.scale(J.z, J.z); c.translate(-this.W / 2, -this.H / 2);   // one rigid camera knock for the whole frame
     if (shot.kind === 'end') this.drawEnd(t);
     else {
       this.drawShot(shot, t);
