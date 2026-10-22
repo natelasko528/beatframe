@@ -41,18 +41,20 @@ Every regeneration and re-render costs the user tokens and money.
 - Write a clean `lyrics.txt`. Use the user's lyrics if given, otherwise the fixed transcript. Tag sections `[Intro] [Hook]/[Chorus] [Verse 1] [Bridge] [Outro]`.
   - Tag a distinct chant/pre-hook with its own name (e.g. `[Island]`) so its lines get their own scenes.
   - `[Hook]`/`[Chorus]` sections reuse hook images.
+- Start the app: `npx vite build && npx vite preview --port 4175 --host 127.0.0.1` (background). Set `CHROMIUM_PATH=/opt/pw-browsers/chromium` in this sandbox.
 - Plan the edit with `node tools/plan.mjs --song track.wav --lyrics lyrics.txt --words words.json --title T --artist A --out plan.json`. It prints BPM, key, lines (check the matched counts are high) and one scene per lyric line, with shot times.
 
 ### 2. Creative direction (you are the director)
 Write `direction.json` in the `Direction` schema (`src/engine/stages.ts`):
 - concept, world, mood/grade, palette (6 hex), fonts (from `FONT_CHOICES`), lyric layout and reveal, energy, grade (letterbox 92), particles, transitions and graphics.
+- Match the song: e.g. island song → warm gold + turquoise, Caveat hot words, light-sweep transitions; heartfelt rap → golden hour + amber/red accents, Playfair hot words, film-burn transitions.
 - Set `graphics.titleOnDrops: false`. The chorus lyric already boxes the title, and a second title lockup slides in clipped at the frame edge.
 
 Write the scene list (see `examples/.../scenes.json`):
 - About 30–75 images. Merge lines that share an image via `alias.json` (`{"S08": "S03"}`).
 - Vary shot sizes and locations, and give the video a story arc.
 - Put the artist in ~70% of scenes. Write identity text once and reuse it in every prompt.
-- Keep romance tasteful.
+- No readable text, logos or brands in images. Keep romance tasteful.
 
 Per-scene FX in `fx.json` (`{"S07":["snow"]}`), chosen by lyric meaning:
 - `rain` / `snow` / `embers` / `dust`
@@ -170,8 +172,8 @@ Then:
 Tell the user in a few lines:
 - what was made
 - what was verified
-- the real cost (image calls; tell them to check the provider usage page rather than guessing)
-- any known weakness (e.g. a stray background sign)
+- the real cost (image calls, or $0 + Kaggle hours used; tell them to check the provider usage page rather than guessing)
+- any known weakness (e.g. a stray background sign; in full-motion videos, 480p clips upscaled are a bit softer, 720p is sharper but 2–3x slower)
 - one next step
 
 Don't recap every step.
