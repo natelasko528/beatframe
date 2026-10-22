@@ -23,7 +23,7 @@ work = os.path.splitext(os.path.abspath(a.out))[0] + f'.chunks-{key}'; os.makedi
 per = -(-total // a.chunks); ranges = [(i * per, min(total, (i + 1) * per)) for i in range(a.chunks) if i * per < total]
 
 def frames(f):
-    r = subprocess.run(['ffprobe', '-v', 'error', '-count_packets', '-show_entries', 'stream=nb_read_packets,width', '-of', 'csv=p=0', f], capture_output=True, text=True)
+    r = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-count_packets', '-show_entries', 'stream=nb_read_packets,width', '-of', 'csv=p=0', f], capture_output=True, text=True)
     try: w, n = r.stdout.strip().split(','); return int(n), int(w)
     except ValueError: return 0, 0
 
