@@ -8,12 +8,23 @@ description: Make a finished music video from a song file plus artist photos, as
 Turns an uploaded song (m4a/mp3/wav) plus the artist's reference photos into a 1080p music video. Lyrics land word by word on the vocal, cuts land on the beat, and every scene is built from the song's own lyrics.
 
 Two modes. Ask which one if the user didn't say:
-- **Lyric video**: AI stills animated by code. Each still is cut into far, mid and subject layers that glide smoothly with parallax, and the whole frame jolts on the kicks and snares. Cost is the images only.
+- **Lyric video** (default): photoreal 4K AI plates animated by code like a real rap video.
+  - Each scene is a stack of real layers (clean background, mid, subject, and a foreground element past the lens).
+  - On top runs a motion-graphics edit: beat-cut camera angles, whip/zoom/glitch transitions, slamming chorus words, stamped call-outs, shockwaves, and whole-frame drum jolts.
+  - Cost is the images only.
 - **Full-motion video**: same edit, but every scene is a real AI video clip (people move, waves crash, camera flies).
 
 The engine and tools live in the repo **natelasko528/beatframe** (branch `main`). Clone it and run `npm install`. The tools are in `tools/` and the renderer CLI is `cli/beatframe.mjs`.
 
-`tools/examples/no-worries-weather/` holds a complete worked example (direction, scenes, motion, alias, lyrics). Mirror its quality. The approved reference is **Family First v2** (Oct 2026), which used layered parallax and drum jolts. The user said "much better", so its look and motion are the default.
+`tools/examples/no-worries-weather/` holds a complete worked example (direction, scenes, motion, alias, lyrics). Mirror its quality.
+
+Approved references:
+- **Family First v2** (Oct 2026): layered parallax plus drum jolts. The user said "much better".
+- **Big Money** (Nov 2026): adds GPT Image 2.6 4K plates, real Milwaukee location refs and the motion-graphics pass. The user asked for "more action, to the beat, like a real music video, not a slideshow".
+
+Their look and motion are the default.
+
+**About "Claude Motion":** it's real, Anthropic's code-based animation feature (beta, Oct 2026, exports MP4). It's **Team/Enterprise only**, enabled by an admin under Organization settings > Artifacts, and it doesn't do realistic people or full songs. If the Artifact tool lists a Motion type, use it for short add-ons (animated title card, end credits, 15 s social teaser) and splice its MP4 into the render. Otherwise BeatFrame's own motion-graphics pass (below) does the same job inside the video. Check the list rather than assuming.
 
 ## Get it right the first time (saves the user money)
 Every regeneration and re-render costs the user tokens and money.
@@ -29,6 +40,10 @@ Every regeneration and re-render costs the user tokens and money.
 - Before sending anything, render it, look at frames across the whole song, and fix problems first. Never send unverified work.
 - Ask before spending the user's money or paid credits. Free resources (Kaggle quota) are fine to use.
 - Keep API keys in `~/.secrets/<name>` (chmod 600). Never print or commit them. Remind the user to rotate any key pasted in chat.
+- **Photoreal first, effects in post.**
+  - Images must look like real photographs: real skin, real light, no CGI or airbrushed look.
+  - All music-video effects (grade, glitches, cash, flares) are added by the engine, never baked into the images.
+- **Real locations.** Use real reference photos of the artist's city (Milwaukee for Tony Mack) for every outdoor scene. A generic skyline is a fail.
 - **Family members and children are never generated as people.** If the user says not to show their family (e.g. their daughters), use symbols instead: two roses, an empty swing, small bikes, a crayon drawing, empty chairs.
 - **Send finished render sections to the chat as they complete**, with the audio, so the user can watch progress without waiting for the full render.
 
@@ -61,46 +76,84 @@ Per-scene FX in `fx.json` (`{"S07":["snow"]}`), chosen by lyric meaning:
 - `rays` (god rays) / `flare` (anamorphic sweep)
 - `petals` (rose petals) / `sparks`
 
-### 3. Scene images (choose provider)
-Ask which provider; default to OpenAI if a funded key exists.
-- **OpenAI gpt-image** (best face match): `/v1/images/edits` with 2–3 artist reference photos, 1536x1024, quality `high` (use `medium` to save money). Run 3 in parallel. Check the key has credit first with a tiny `low` call.
-- **Gemini / fal / Higgsfield** (`mcp__Higgsfield__generate_image_batch`, preflight `get_cost`) are alternatives.
-- **Canva `generate-image`**: matches faces well but has a small quota, and only thumbnails are downloadable. For full resolution, place images in a design and use `export-design`.
+### 3. Scene images: GPT Image 2.6 plates built for motion (default provider: OpenAI)
+Key: `~/.secrets/openai`. If it's dead ("invalid API key"), ask for a new one; never print it.
 
-**Avoid regeneration rounds.** Family First needed 3 rounds because of these mistakes:
-- **Crop every reference photo to the face and shoulders before use.** Pendants, shirt prints, posters or any lettering in a reference get copied into every image. A "TONY MACK" pendant spread through a whole batch this way.
-- Every prompt ends with: `No text, no letters, no numbers, no logos, no signs, no banners, no lettering on clothing — plain unbranded clothes.`
-- Don't name the city in prompts ("Milwaukee"). The model paints the name on signs; describe the skyline instead.
-- Compose for layers: a clear subject in the mid-foreground, separated from a deep background (skyline, street, window light). This gives the parallax real depth.
-- Write prompts for symbol scenes as objects only, with no person anywhere.
+**References**
+- **Identity:** the artist's real photos, cropped to face and shoulders (Tony Mack's real photos: `bm/refs/n1–n4.jpg`), plus the 1–2 best faces from earlier videos (`r1.jpg`, `r3_ff.jpg`). Up to 5 refs.
+- **Location:** one real photo per outdoor scene, appended as the **last** ref. Source them from Wikimedia Commons:
+  - Use the API `generator=search` with a User-Agent header, 2 s between requests (it rate-limits; on HTTP 429 wait about a minute).
+  - Download the `iiurlwidth=1600` thumbnails.
+  - Milwaukee set: lakefront skyline with the Art Museum wings, Hoan Bridge, Third Ward streets.
 
-Make contact sheets and inspect every image. Regenerate only the images that are off-brief or contain text; keep the rest.
+**Prompt shape** (see `tools/examples/big-money/scenes.py`):
+```
+Create a completely NEW cinematic wide shot (not a portrait, do not copy any reference photo's pose, framing, clothing or background).
+SCENE: <idea>  LOCATION: the real city in the LAST reference image … all signs blank, no names or logos on buildings …
+CAMERA: medium-wide, the man fills 45–60% of frame height.  IDENTITY: use the first reference photos only for the man's face …
+PHOTOREALISM: real photograph, ARRI Alexa 35 + Cooke anamorphic, skin pores, real fabric, physically accurate light; not CGI, no airbrushed skin, no HDR halo …
+Gangster rap video energy: low angle, confident body language, hard contrast …
+Composed for multilayer parallax: man at mid-depth on a third, clear space around his silhouette, deep background, one out-of-focus foreground element at a frame edge, nothing important in the outer 10% …
+No text, no letters, no numbers, no logos, no signs, no lettering on clothing.
+```
+- Without the "NEW wide shot … not a portrait" opener, edits with refs return copies of the ref portraits.
+- **Never name landmarks or the city** (e.g. "Third Ward", "US Bank"): the model paints them as signs. Describe them instead and let the location photo carry it.
+- Gangster rap craft:
+  - artist in ~70% of shots
+  - low-angle hero shots and crew stacked behind him
+  - flex props (cars, cash, chains, cigars)
+  - "came from little" vs "made it" contrast scenes
+  - wet night streets, performance shots with a mic
+- **Safety filter:** rephrase, don't argue. An "elegant woman in an evening dress teasing him" was blocked as sexual; "business partner in a blazer laughing in the doorway" passed. Brand names (Cadillac) can trip it too. Blocked calls aren't billed.
 
-### 4a. Lyric video: layered parallax (APPROVED DEFAULT)
-1. Build the project with depth maps (Depth Anything V2, free, ~12 s per image on CPU). Set `--strength 1`.
+**Generate**
+```
+python3 tools/plates.py jobs.json plates --threads 2      # 3 max; 6 threads OOM-killed the sandbox
+```
+- **Hero plate:** `gpt-image-2.6-sunburst` edits, 3840×2160, quality high.
+- **Clean background plate:** a masked edit ("remove the man, rebuild what was behind him"), then automatically warped onto the hero with a SIFT homography. The subject area is filled from it, so it lines up exactly ("clean plate aligned" in the log).
+- **Foreground sprites:** jobs with `"sprite": true` use `gpt-image-2.6-flare` with `background: transparent`, which works on 2.6. The standard set is cash, smoke, gold confetti, champagne, sparks, rain, bokeh, chain-link fence.
+- Skips existing files, so re-run after any crash. Check for truncated PNGs after a container restart.
+- Prints token usage. Real cost was about **$0.26 per scene** (hero + clean at 4K high) and about $0.03 per sprite, so about $11–12 for 40 scenes + 8 sprites.
+
+Make contact sheets of every hero and check:
+- likeness
+- real-city look
+- no text or signs: crop or regenerate if needed
+
+Regenerate only the failures.
+
+### 4a. Lyric video: layered plates + motion graphics (APPROVED DEFAULT)
+1. **Map lines to concepts.** `mapping.json` maps scene ids to concepts, and the first scene per concept gets the image; the rest go in `alias.json`. `tools/examples/big-money/assemble.py` then writes `imgs/S##.jpg` (1920 px, for depth), `splates/S##.png` and `S##_bg.png` (4K symlinks), and `fx.json` / `fg.json`.
+2. **Build** with depth maps:
    ```
    node tools/build.mjs --song track.wav --lyrics lyrics.txt --words words.json --title T --artist A \
-     --direction direction.json --images imgdir --alias alias.json --fx fx.json --strength 1 \
-     --hot "word1,word2" --depth --out project.beatframe.json
+     --direction direction.json --images imgs --alias alias.json --fx fx.json --strength 1 --hot "W1,W2" --depth --out project.beatframe.json
    ```
-2. Split every still into 3 layers:
+3. **Layers from the 4K plates**, using the real clean background:
    ```
-   pip install --break-system-packages "rembg[cpu]"     # once; downloads isnet-general-use (~180 MB) from GitHub
-   python3 tools/layers.py project.beatframe.json layers/
+   LAYER_JOBS=1 python3 tools/layers.py project.beatframe.json layers --plates splates
    ```
-   This takes about 3 s per image. It writes `layers/<id>_L0/L1/L2.webp` and adds layer assets plus each scene's `anchor` (the subject's head) to the project.
-   - **L2 subject**: the artist or symbol object, cut out with a salient-object matte so a person is never split across layers.
-   - **L1 mid**: far/mid split by depth, with the subject's footprint inpainted.
-   - **L0 far**: the background, with everything in front of it inpainted.
-3. Contact-sheet the L2 subject layers (on magenta) and check that each subject is a clean cutout.
-
-How the renderer moves it (`renderer.ts`: `layered()`, `buildHits()`, `jolt()`). This is the approved motion; don't change it unless asked.
-- **Layers:** each layer is a rigid plane gliding from the first frame of the shot to the last. Speeds are far 0.35×, mid 1×, subject 1.12×, and subject +6.5% / mid +2.5% zoom over the shot. The camera push pivots on the subject's head, so the face stays in frame. Nothing inside a layer warps.
-- **Drum jolts:** one whole-frame jolt per clean drum hit, at most one per beat, and only where a kick or snare lands. Hi-hats never trigger it. Each jolt is an instant knock that settles on a damped spring over ~0.35 s.
-  - Snares hit harder than kicks, choruses harder than verses, and drops hardest. Quiet passages are softer.
-  - Lyrics and FX ride the same frame.
-  - Strength scales with `style.motion.shake` (3 = approved).
-- **Never** use per-pixel depth warping (the old `living()` shader), high-frequency shake, per-image kick zoom, or water/foliage shimmer on lyric videos. The user rejected all of these as "jittery and distorted". Without layers the renderer falls back to the shader. Always run `layers.py`.
+   Needs `pip install --break-system-packages "rembg[cpu]"`. It skips scenes already split (`layers/anchors.json`), so after a rebuild it only does new ones. Contact-sheet the L2 subjects on magenta.
+4. **Motion graphics pass:**
+   ```
+   python3 tools/motiongfx.py project.beatframe.json --assets layers --fg fg.json --sprites plates
+   ```
+   Then set `style.lyrics.size` to about 110 for condensed fonts like Anton; 84 reads too small.
+   - `lyrics.slam`:
+     - Chorus words slam in on their beat (scale 2.1→1).
+     - `(WHO?)` / `(TONY!)` call-outs become tilted stamped tags.
+     - In big sections, shockwave rings on strong hits, light streaks on alternate hits, and speed lines on drops.
+   - `tools/beatcut.py`:
+     - Splits shots on the beat grid: every 2 beats in hooks, 4 in verses and bridge.
+     - Gives each cut a camera angle: 0 wide, 1 medium, 2 close (needs 4K), 3 crane, 4 pull-back. All are framed on the subject's head and never repeat back-to-back.
+     - Gives each cut a drum-matched transition: snare → whip pan, kick → zoom punch, section/drop → RGB glitch.
+     - Re-runnable: keeps `shotsBase`.
+   - Foreground sprites glide past the lens with a soft hole cut where the face is, so they frame him instead of covering him. Bokeh runs at 40% opacity.
+5. **Layer motion and jolts** are unchanged from Family First v2:
+   - far 0.35× / mid 1× / subject 1.12× lateral, with subject +6.5% zoom pivoting on the head
+   - one whole-frame damped jolt per clean kick or snare hit, never on hi-hats
+   - Never per-pixel warping, high-frequency shake, or shimmer.
 
 Then go to step 5.
 
@@ -120,7 +173,7 @@ Write `motion.json` with one line per scene: what moves plus the camera move (se
 
 Then:
 - Attach the clips with `python3 tools/attach_clips.py project.beatframe.json clips project_clips.json clipfiles`. It smooths to 30 fps, upscales to 1080p and encodes VP9 (sandbox Chromium can't decode H.264).
-- Scenes without a clip fall back to the layered still. Run `layers.py` too.
+- Scenes without a clip fall back to the layered still. Run `layers.py` and `motiongfx.py` too.
 - The drum jolts apply to clip scenes as well.
 
 ### 5. Test, render, verify, deliver
@@ -137,7 +190,7 @@ Then:
      --assets layers --audio song.mp3 --out "Artist_-_Title_(Official_Video)_1080p.mp4" --chunks 12 --jobs 2
    ```
    Run it in the background and don't poll with `sleep`.
-   - Speed with layers is ~5 fps on 2 cores, so ~30 min for a 4.5-min song. The old shader path ran at 1.5 fps.
+   - Speed is about 5 fps on 2 cores with 4K layers and motion graphics, so ~25 min for a 4-min song.
    - Each chunk is validated (exact frame count) and kept; the cache key covers the project, engine and layers. Re-running after a crash renders only the missing chunks.
    - The chunks are joined with `-c copy` and the audio is added once (AAC 320k).
    - As chunks finish, send them to the user with audio (`-ss <chunk start>` on the song).
@@ -155,6 +208,7 @@ Then:
    ```
 
 ## Gotchas learned the hard way
+- **Memory (~8 GB):** plate generation with 6 threads, or with a build running beside it, got OOM-killed. Use ≤2–3 threads and `LAYER_JOBS=1` for 4K layers.
 - **Never start another Chromium/render while a render is running.** The sandbox has 2 cores and ~8 GB, and a side benchmark OOM-killed a 50%-done render.
 - `pkill -f <pattern>` can match your own shell command and kill it. Kill by PID.
 - `cli/beatframe.mjs` rebuilds `dist-engine` automatically when `src/engine` changes. If a render looks stale, delete `dist-engine/`.
@@ -172,7 +226,7 @@ Then:
 Tell the user in a few lines:
 - what was made
 - what was verified
-- the real cost (image calls, or $0 + Kaggle hours used; tell them to check the provider usage page rather than guessing)
+- the real cost: sum the token lines `plates.py` prints (runs killed mid-way don't print theirs, so say so), or $0 + Kaggle hours; point the user to the provider usage page
 - any known weakness (e.g. a stray background sign; in full-motion videos, 480p clips upscaled are a bit softer, 720p is sharper but 2–3x slower)
 - one next step
 

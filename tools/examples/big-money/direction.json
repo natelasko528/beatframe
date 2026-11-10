@@ -1,0 +1,19 @@
+{
+ "concept": "Big Money: Tony Mack is back and the whole city knows it. A night-to-summer Milwaukee flex video: wet Third Ward streets, lakefront rooftops, brass-blasting warehouse parties and the money walk — success that brings the whole crew with him.",
+ "world": "Milwaukee at night and in summer: Third Ward brick streets, lakefront skyline with the Art Museum wings, the Hoan Bridge, rooftops, clubs, a brass-section warehouse party, a mob-movie cigar lounge.",
+ "mood": "high-energy gangster rap video, glossy and swaggering, gold and amber light against emerald and magenta neon, deep blacks, wet reflections",
+ "timeOfDay": "night with neon and golden-hour summer days",
+ "wardrobe": "black tee, gold Cuban chain, leather jacket, pinstripe suit for the mob scenes, sunglasses",
+ "motifs": ["gold chain", "flying cash", "brass horns", "the money walk", "wet streets", "Lake Michigan skyline", "vintage Cadillac"],
+ "locations": ["Third Ward street", "rooftop", "club floor", "warehouse party", "lakefront", "cigar lounge", "stage"],
+ "palette": {"background": "#0a0907", "text": "#fff6e3", "accent": "#f2b632", "accent2": "#0f8f5f", "hot": "#ffd25e", "sign": "#b0306e"},
+ "fonts": {"lyric": "Anton", "hot": "Bebas Neue", "display": "Anton", "small": "Space Grotesk"},
+ "lyrics": {"layout": "lower-left", "reveal": "pop", "caps": true, "size": 84},
+ "energy": 0.9,
+ "grade": {"bloom": 0.32, "grain": 0.08, "vignette": 0.5, "lightLeak": 0.12, "letterbox": 92, "colourSplitOnDrops": true},
+ "particles": "dust",
+ "transitions": {"section": "flash", "drop": "flash-rgb"},
+ "graphics": {"placeSigns": false, "locationCaptions": false, "shoutStamps": true, "titleOnDrops": false, "opener": "classic", "letterbox_credits": false},
+ "titleCard": {"tagline": "Big money got a bounce", "definition": []},
+ "why": "A flex anthem with a brass hook: heavy condensed type that slams on the beat, money-green and gold, glitch and flash on the drops, beat-cut camera angles and call-and-response stamps like a real rap video."
+}
