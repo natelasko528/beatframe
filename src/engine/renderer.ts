@@ -10,6 +10,8 @@ type Img = CanvasImageSource & { width: number; height: number };
 const clamp = (x: number, a = 0, b = 1) => Math.max(a, Math.min(b, x));
 // Where to crop an image that's taller than the frame: 0.5 = centre, lower keeps more of the top (faces live in the upper third).
 const V_ANCHOR = 0.3;
+// Motion-graphics camera angles for beat cuts: [zoom at start, zoom at end, how far to re-frame the head to a thirds point, crane rise]
+const ANGLES: [number, number, number, number][] = [[1, 1.06, 0, 0], [1.32, 1.4, 0.6, 0], [1.75, 1.86, 1, 0], [1.16, 1.24, 0.35, 1], [1.55, 1.2, 0.7, 0]];
 const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
 const easeOut = (k: number) => 1 - Math.pow(1 - k, 3);
 const easeIn = (k: number) => k * k * k;
@@ -122,12 +124,15 @@ export class Renderer {
   private layered(c: Ctx, s: Shot, z: number, xp: number, yp: number, k: number) {
     const L = [0, 1, 2].map(i => this.imgs[`${s.img}~L${i}`]); if (!L[0] || !L[1] || !L[2]) return false;
     const strength = this.p.style.motion.depth ?? 0.8, an = this.p.scenes.find(x => x.id === s.img)?.anchor ?? [0.5, 0.4];
-    const iw = L[0].width, ih = L[0].height, s1 = Math.max(this.W / iw, this.H / ih) * 1.08, w1 = iw * s1, h1 = ih * s1, w = w1 * z, h = h1 * z;
+    const kk = 0.5 * k + 0.5 * (0.5 - 0.5 * Math.cos(Math.PI * k)), m = kk - 0.5;        // near-constant glide, softened at the ends
+    // camera angle for this cut (motion graphics): wide / medium / close / crane / pull-back, all framed on the subject's head
+    const A = ANGLES[(s.angle ?? 0) % ANGLES.length], za = lerp(A[0], A[1], kk);
+    const iw = L[0].width, ih = L[0].height, s1 = Math.max(this.W / iw, this.H / ih) * 1.08, w1 = iw * s1, h1 = ih * s1, w = w1 * z * za, h = h1 * z * za;
     // camera push pivots on the subject's head: it holds its place on screen while everything else grows around it (clamped so the frame stays covered)
-    const fx = (this.W - w1) / 2 + an[0] * w1, fy = (this.H - h1) * V_ANCHOR + an[1] * h1, mx = 0.03 * this.W, my = 0.02 * this.H;
+    const nx = (this.W - w1) / 2 + an[0] * w1, ny = (this.H - h1) * V_ANCHOR + an[1] * h1, mx = 0.03 * this.W, my = 0.02 * this.H;
+    const fx = lerp(nx, (an[0] < 0.5 ? 0.4 : 0.6) * this.W, A[2]), fy = lerp(ny, 0.36 * this.H, A[2]) + A[3] * (0.5 - kk) * 0.22 * this.H;
     const x0 = clamp(fx - an[0] * w, this.W - w + mx, -mx) + (xp / 100) * this.W, y0 = clamp(fy - an[1] * h, this.H - h + my, -my) + (yp / 100) * this.H;
     const seed = Math.round(s.from * 1000) + s.img.length * 7, ang = (hash(seed) - 0.5) * 0.7 + (hash(seed + 1) > 0.5 ? 0 : Math.PI);
-    const kk = 0.5 * k + 0.5 * (0.5 - 0.5 * Math.cos(Math.PI * k)), m = kk - 0.5;        // near-constant glide, softened at the ends
     const T = 0.045 * this.W * strength, dx = Math.cos(ang) * T * m, dy = Math.sin(ang) * T * m * 0.5;
     const ax = x0 + an[0] * w, ay = y0 + an[1] * h;
     const plan: [number, number][] = [[0.35, 0], [1, 0.025 * strength], [1.12, 0.065 * strength]];   // [lateral speed, zoom gained over the shot]
@@ -201,8 +206,13 @@ export class Renderer {
       const txt = talk || allit || st.lyrics.case === 'as-is' ? w.d : w.d.toUpperCase();
       c.font = f; return { ...w, i, allit, isHot, f, txt, w2: c.measureText(txt).width, box: i < boxN, street: signWords.has(i) };
     });
+    // motion graphics: (CALL-OUTS) leave the line and become stamped tags; hook words slam in on their beat
+    const slam = !!st.lyrics.slam && (hook || !!L.stamp); let inP = false;
+    const paren = L.words.map(w => { if (w.d.startsWith('(')) inP = true; const r = inP; if (w.d.includes(')')) inP = false; return r; });
+    if (st.lyrics.slam) this.drawCallouts(L, paren, t, Math.min(L.next - 0.04, L.end + 1.8));
+    const flow = st.lyrics.slam ? words.filter(w => !paren[w.i]) : words;
     const rows: (typeof words)[] = [[]]; let rw = 0;
-    words.forEach(w => { if (rw + w.w2 > maxW && rows[rows.length - 1].length) { rows.push([]); rw = 0; } rows[rows.length - 1].push(w); rw += w.w2 + gap; });
+    flow.forEach(w => { if (rw + w.w2 > maxW && rows[rows.length - 1].length) { rows.push([]); rw = 0; } rows[rows.length - 1].push(w); rw += w.w2 + gap; });
     const LB = st.grade.letterbox * u; const lh = fs * 1.1, bottom = this.H - LB - (this.vertical ? this.H * 0.16 : 60 * u), baseY = bottom - rows.length * lh;
     // legibility pool
     const g = c.createLinearGradient(0, baseY - 140 * u, 0, this.H); g.addColorStop(0, rgba(P.bg, 0)); g.addColorStop(1, rgba(P.bg, 0.6 * (1 - out)));
@@ -216,11 +226,11 @@ export class Renderer {
         if (p > 0) {
           const e = easeOut(p), active = t >= w.s - 0.04 && t <= w.e + 0.08, rev = st.lyrics.reveal;
           c.save();
-          const dy = rev === 'rise' ? (1 - e) * fs * 0.7 : rev === 'blur' ? (1 - e) * 18 * u : 0;
-          const sc = rev === 'pop' ? 0.6 + 0.4 * easeBack(p) : rev === 'blur' ? 1 + 0.18 * (1 - e) : 1;
+          const dy = slam ? 0 : rev === 'rise' ? (1 - e) * fs * 0.7 : rev === 'blur' ? (1 - e) * 18 * u : 0;
+          const sc = slam ? 1 + 1.15 * Math.pow(1 - clamp((t - (w.s - 0.03)) / 0.13), 3) : rev === 'pop' ? 0.6 + 0.4 * easeBack(p) : rev === 'blur' ? 1 + 0.18 * (1 - e) : 1;
           c.translate(x + w.w2 / 2, yb + dy); c.scale(sc, sc); if (w.isHot && !w.allit) c.rotate(-0.045);
           c.font = w.f; c.textAlign = 'center'; c.globalAlpha = clamp(p * 1.6) * (1 - out);
-          if (rev === 'blur' && p < 1) (c as any).filter = `blur(${(1 - e) * 8 * u}px)`;
+          if (rev === 'blur' && p < 1 && !slam) (c as any).filter = `blur(${(1 - e) * 8 * u}px)`;
           c.shadowColor = 'rgba(0,0,0,.68)'; c.shadowBlur = 22 * u; c.shadowOffsetY = 6 * u;
           if (w.box) { c.fillStyle = P.accent2; const pad = 10 * u; c.fillRect(-w.w2 / 2 - pad, -fs * 0.82, w.w2 + pad * 2, fs * 0.92); c.shadowBlur = 0; c.fillStyle = '#fff'; }
           else c.fillStyle = w.allit ? this.foil(c, -w.w2 / 2, -fs, w.w2 / 2, 0, t) : w.isHot ? P.hot : active && !talk ? st.lyrics.activeColor : P.text;
@@ -233,6 +243,25 @@ export class Renderer {
       });
     });
     c.restore(); c.globalAlpha = 1;
+  }
+
+  /** Stamped call-out tags for (WHO?) / (TONY!) style ad-libs: pop in on their word, tilt, hold until the line clears. */
+  private drawCallouts(L: Line, paren: boolean[], t: number, hide: number) {
+    if (t > hide) return;
+    const c = this.ctx, u = this.u, P = this.p.style.palette, groups: { s: number; txt: string }[] = [];
+    L.words.forEach((w, i) => { if (!paren[i]) return; const d = w.d.replace(/[()]/g, ''); if (w.d.startsWith('(') || !groups.length || !paren[i - 1]) groups.push({ s: w.s, txt: d }); else groups[groups.length - 1].txt += ' ' + d; });
+    groups.forEach((g, gi) => {
+      const a = t - (g.s - 0.04); if (a < 0) return;
+      const k = easeBack(clamp(a / 0.18)), out = clamp((t - (hide - 0.15)) / 0.15), side = (gi + L.i) % 2 ? 1 : -1;
+      const x = this.W / 2 + side * this.W * 0.22, y = this.H * (0.3 + 0.08 * (gi % 2)), rot = side * (0.07 + 0.03 * hash(L.i + gi));
+      const fs = 150 * u, txt = g.txt.toUpperCase();
+      c.save(); c.translate(x, y); c.rotate(rot); c.scale(k * (1 + 0.04 * this.kick(t)), k); c.globalAlpha = 1 - out;
+      c.font = this.font(this.p.style.fonts.display, fs); const tw = c.measureText(txt).width, pad = 26 * u;
+      c.fillStyle = 'rgba(0,0,0,.45)'; c.fillRect(-tw / 2 - pad + 12 * u, -fs * 0.62 + 14 * u, tw + pad * 2, fs * 1.2);
+      c.fillStyle = P.accent2; c.fillRect(-tw / 2 - pad, -fs * 0.62, tw + pad * 2, fs * 1.2);
+      c.fillStyle = '#fff'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(txt, 0, fs * 0.04);
+      c.restore();
+    });
   }
 
   // ---------- signs / captions / stamps ----------
@@ -268,7 +297,8 @@ export class Renderer {
     const c = this.ctx, u = this.u, li = this.lineAt(t); if (li < 0) return; const L = this.p.lines[li];
     if (!L.stamp || t > Math.min(L.next, L.end + 1.6)) return;
     const a = t - L.start + 0.05, k = easeBack(clamp(a / 0.22)), P = this.p.style.palette;
-    const txt = L.text.replace(/!+$/, '').toUpperCase(); const ws = txt.split(' ');
+    let inP = false; const paren = L.words.map(w => { if (w.d.startsWith('(')) inP = true; const r = inP; if (w.d.includes(')')) inP = false; return r; });
+    const txt = (this.p.style.lyrics.slam ? L.text.replace(/\([^)]*\)/g, '').replace(/\s+/g, ' ').trim() : L.text).replace(/!+$/, '').toUpperCase(); const ws = txt.split(' ');
     const rows = txt.length > 12 ? [ws.slice(0, Math.ceil(ws.length / 2)).join(' '), ws.slice(Math.ceil(ws.length / 2)).join(' ')] : [txt];
     c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(0, 0, this.W, this.H);
     c.save(); c.translate(this.W / 2, this.H / 2); c.rotate(-0.035); const z = (1.6 - 0.6 * k) * (1 + 0.05 * this.kick(t)) * u * (this.vertical ? 0.6 : 1); c.scale(z, z);
@@ -277,6 +307,7 @@ export class Renderer {
       c.font = last ? this.font(this.p.style.fonts.hot, fs * 0.95) : this.font(this.p.style.fonts.display, fs); c.shadowColor = 'rgba(0,0,0,.7)'; c.shadowBlur = 40; c.fillStyle = last ? P.hot : P.text; c.fillText(r, 0, y); c.shadowBlur = 0; });
     const sw = clamp((a - 0.15) / 0.35) * 900, yy = fs * 0.62 * rows.length; c.fillStyle = P.accent2; c.beginPath(); c.moveTo(-450, yy); c.lineTo(-450 + sw, yy - 10); c.lineTo(-450 + sw, yy + 6); c.closePath(); c.fill();
     c.restore();
+    if (this.p.style.lyrics.slam && paren.some(Boolean)) this.drawCallouts(L, paren, t, Math.min(L.next, L.end + 1.6));
   }
 
   // ---------- alphabet features ----------
@@ -451,6 +482,66 @@ export class Renderer {
     }
     c.restore();
   }
+  // ---------- motion graphics ----------
+  /** Foreground sprite (cash, smoke, confetti, sparks…) closest to the lens: soft focus, fastest layer. Falling kinds loop vertically. */
+  private drawFg(shot: Shot, t: number) {
+    const id = this.p.scenes.find(x => x.id === shot.img)?.fg, img = id ? this.imgs[id] : undefined; if (!img) return;
+    const c = this.ctx, a = t - shot.from, len = Math.max(0.1, shot.to - shot.from), W = this.W, H = this.H;
+    const sc = Math.max(W / img.width, H / img.height) * 1.3, w = img.width * sc, h = img.height * sc, dir = hash(Math.round(shot.from * 100)) > 0.5 ? 1 : -1;
+    c.save(); c.globalAlpha = 0.9 * clamp(a / 0.15); (c as any).filter = `blur(${2.5 * this.u}px)`;
+    const fall = /cash|confetti|rain|sparks|bokeh/.test(id!), up = /sparks|smoke/.test(id!);
+    const x = (W - w) / 2 - (a / len - 0.5) * W * 0.22 * dir;
+    if (fall) { const v = (up ? -0.32 : 0.38) * H, y = ((a * v) % h + h) % h; c.drawImage(img as any, x, y - h, w, h); c.drawImage(img as any, x, y, w, h); }
+    else c.drawImage(img as any, x, (H - h) / 2 + (0.5 - a / len) * H * 0.06, w, h);
+    (c as any).filter = 'none'; c.restore();
+  }
+  /** Beat transition into a cut: whip pan, zoom punch or RGB glitch, drawn in the first 0.22 s of the shot. */
+  private transition(shot: Shot, t: number) {
+    const a = t - shot.from, D = shot.trans === 'glitch' ? 0.16 : 0.22; if (!shot.trans || shot.trans === 'cut' || a < 0 || a > D) return;
+    const c = this.ctx, m = this.mctx, W = this.W, H = this.H, e = 1 - a / D, N = 6;
+    m.setTransform(1, 0, 0, 1, 0, 0); m.globalCompositeOperation = 'source-over'; m.globalAlpha = 1; m.clearRect(0, 0, W, H); m.drawImage(this.cv as any, 0, 0);
+    c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
+    if (shot.trans === 'whip') {
+      const dir = hash(Math.round(shot.from * 100)) > 0.5 ? 1 : -1, off = dir * Math.pow(e, 2) * W * 0.3;
+      c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
+      for (let i = 0; i < N; i++) { c.globalAlpha = 1 / (i + 1); c.drawImage(this.mask, off * (1 - i / N) + dir * e * W * 0.05 * i, 0); }
+    } else if (shot.trans === 'zoom') {
+      for (let i = 1; i <= N; i++) { const z = 1 + e * 0.35 * (i / N); c.globalAlpha = 0.5 / i * 2; c.drawImage(this.mask, W / 2 - (W * z) / 2, H / 2 - (H * z) / 2, W * z, H * z); }
+    } else {
+      const sh = 26 * this.u * e; c.globalCompositeOperation = 'screen'; c.globalAlpha = 0.55 * e;
+      (c as any).filter = 'sepia(1) hue-rotate(-50deg) saturate(6)'; c.drawImage(this.mask, sh, 0);
+      (c as any).filter = 'sepia(1) hue-rotate(160deg) saturate(6)'; c.drawImage(this.mask, -sh, 0); (c as any).filter = 'none';
+      c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
+      for (let i = 0; i < 7; i++) { const y = hash(i * 7.3 + Math.floor(a * 40)) * H, hh = (0.02 + 0.06 * hash(i + 3)) * H, dx = (hash(i * 3.1 + Math.floor(a * 40)) - 0.5) * 160 * this.u * e;
+        c.drawImage(this.mask, 0, y, W, hh, dx, y, W, hh); }
+    }
+    c.restore(); c.globalAlpha = 1;
+  }
+  /** Bass-driven graphics on clean drum hits in big sections: shockwave ring + light streak; speed lines on drops. */
+  private beatGraphics(t: number) {
+    if (!this.p.style.lyrics.slam) return;
+    const c = this.ctx, W = this.W, H = this.H, u = this.u, P = this.p.style.palette, i = lastBefore(this.hitT, t);
+    c.save(); c.globalCompositeOperation = 'screen';
+    if (i >= 0 && this.big(this.hits[i].t)) {
+      const h = this.hits[i], dt = t - h.t;
+      if (dt < 0.42 && h.a > 0.6) {
+        const k = dt / 0.42, r = (0.08 + 0.75 * easeOut(k)) * W;
+        c.strokeStyle = rgba(P.accent, 0.55 * (1 - k)); c.lineWidth = 16 * u * (1 - k) + 1; c.beginPath(); c.arc(W / 2, H * 0.52, r, 0, Math.PI * 2); c.stroke();
+      }
+      if (dt < 0.3 && i % 2 === 1) {
+        const k = dt / 0.3, y = (0.25 + 0.5 * hash(i * 1.7)) * H, x = lerp(-0.2, 1.2, easeOut(k)) * W, g = c.createLinearGradient(x - 600 * u, 0, x + 600 * u, 0);
+        g.addColorStop(0, rgba(P.hot, 0)); g.addColorStop(0.5, rgba(P.hot, 0.7 * (1 - k))); g.addColorStop(1, rgba(P.hot, 0));
+        c.fillStyle = g; c.fillRect(0, y - 3 * u, W, 6 * u); c.fillStyle = rgba(P.hot, 0.12 * (1 - k)); c.fillRect(0, y - 40 * u, W, 80 * u);
+      }
+    }
+    for (const d of this.p.drops) {
+      const dt = t - d; if (dt < 0 || dt > 0.6) continue; const k = dt / 0.6;
+      c.strokeStyle = `rgba(255,255,255,${0.35 * (1 - k)})`; c.lineWidth = 3 * u;
+      for (let j = 0; j < 70; j++) { const an = hash(j * 9.1 + d) * Math.PI * 2, r0 = (0.25 + 0.5 * hash(j + d)) * W * (0.6 + k), r1 = r0 + (0.1 + 0.2 * hash(j * 2.3)) * W;
+        c.beginPath(); c.moveTo(W / 2 + Math.cos(an) * r0, H / 2 + Math.sin(an) * r0); c.lineTo(W / 2 + Math.cos(an) * r1, H / 2 + Math.sin(an) * r1); c.stroke(); }
+    }
+    c.restore();
+  }
   private sceneFx(img: string) { return this.p.scenes.find(s => s.id === img)?.fx ?? []; }
 
   private grade(t: number, f: number) {
@@ -500,6 +591,9 @@ export class Renderer {
     if (shot.kind === 'end') this.drawEnd(t);
     else {
       this.drawShot(shot, t);
+      this.drawFg(shot, t);
+      this.transition(shot, t);
+      this.beatGraphics(t);
       if (shot.kind === 'open') this.drawOpen(t);
       if (st.features.captions) this.drawCaption(shot, t);
       this.drawParticles(t);

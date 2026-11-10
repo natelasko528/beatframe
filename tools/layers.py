@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Split each scene still into 3 depth layers (far / mid / near) for smooth 2.5D parallax.
+"""Split each scene still into 3 depth layers (with --plates: from 4K hero plates + real clean background plates) (far / mid / near) for smooth 2.5D parallax.
 
     python3 tools/layers.py project.beatframe.json outdir [--only S01,S05]
 
@@ -59,8 +59,12 @@ def feather(mask, sigma, erode=0):
 
 
 def split(job):
-    sid, img_url, dep_url, out = job
-    img = np.array(decode(img_url).convert('RGB'))[..., ::-1].copy()      # BGR for cv2
+    sid, img_url, dep_url, out, plates = job
+    hero = f'{plates}/{sid}.png' if plates else None
+    src = Image.open(hero) if hero and os.path.exists(hero) else decode(img_url)          # full-res hero plate when we have one
+    img = np.array(src.convert('RGB'))[..., ::-1].copy()      # BGR for cv2
+    bgp = f'{plates}/{sid}_bg.png' if plates else None
+    cleanp = np.array(Image.open(bgp).convert('RGB').resize((src.width, src.height)))[..., ::-1].copy() if bgp and os.path.exists(bgp) else None
     h, w = img.shape[:2]
     d = np.array(decode(dep_url).convert('L').resize((w, h), Image.BICUBIC)).astype(np.float32) / 255
     d = cv2.bilateralFilter(cv2.GaussianBlur(d, (0, 0), 2), 9, 0.08, 9)
@@ -74,9 +78,14 @@ def split(job):
     _, _, cen = cv2.kmeans(rest, 2, None, (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 1e-3), 3, cv2.KMEANS_PP_CENTERS)
     t1 = float(cen.mean()); mid = clean(d > t1, 21) | near
     # mid layer: colours with the near footprint filled in; soft edge so ground planes don't show a seam
-    midc = inpaint(img, near, 14); a1 = feather(mid, 6)
-    # far layer: everything in front filled in
-    far = inpaint(img, mid, 18)
+    if cleanp is not None:   # real clean plate: what was actually behind the subject, so big moves never reveal smears
+        fa = feather(cv2.dilate(near, np.ones((31, 31), np.uint8)), 6)[..., None].astype(np.float32) / 255
+        midc = (img * (1 - fa) + cleanp * fa).astype(np.uint8); a1 = feather(mid, 6)
+        far = inpaint(cleanp, cv2.subtract(mid, cv2.dilate(near, np.ones((31, 31), np.uint8))), 18)
+    else:
+        midc = inpaint(img, near, 14); a1 = feather(mid, 6)
+        # far layer: everything in front filled in
+        far = inpaint(img, mid, 18)
     rgb = lambda x: Image.fromarray(x[..., ::-1].copy())
     rgb(far).save(f'{out}/{sid}_L0.webp', quality=90)
     Image.fromarray(np.dstack([midc[..., ::-1], a1])).save(f'{out}/{sid}_L1.webp', quality=90)
@@ -92,9 +101,10 @@ def split(job):
 
 if __name__ == '__main__':
     proj, out = sys.argv[1], sys.argv[2]; os.makedirs(out, exist_ok=True)
+    plates = sys.argv[sys.argv.index('--plates') + 1] if '--plates' in sys.argv else None   # dir with <id>.png hero + <id>_bg.png clean plates
     only = set(sys.argv[sys.argv.index('--only') + 1].split(',')) if '--only' in sys.argv else None
     p = json.load(open(proj)); A = {a['id']: a for a in p['assets']}
-    jobs = [(a['id'], a['url'], A[a['id'] + '~depth']['url'], out) for a in p['assets']
+    jobs = [(a['id'], a['url'], A[a['id'] + '~depth']['url'], out, plates) for a in p['assets']
             if a['kind'] == 'image' and a['id'] + '~depth' in A and (not only or a['id'] in only)]
     with ProcessPoolExecutor(2) as ex:
         anchors = {}

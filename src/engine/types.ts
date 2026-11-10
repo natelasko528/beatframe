@@ -23,6 +23,8 @@ export interface Shot {
   kind?: 'open' | 'end' | 'title' | 'scene';
   letter?: string; flash?: boolean; drop?: boolean; whip?: boolean;
   caption?: string;                                 // location caption
+  angle?: number;                                   // motion graphics: camera angle preset for this cut (0 wide, 1 medium, 2 close, 3 crane, 4 pull-back)
+  trans?: 'whip' | 'zoom' | 'glitch' | 'cut';       // motion graphics: transition into this cut
 }
 
 export interface Sign { t: number; text: string; red?: boolean }        // keyword / street-sign pops
@@ -34,6 +36,7 @@ export interface Scene {
   lyric?: string; word?: string;     // what the scene plays under (from the planner)
   idea?: string;                     // short visual idea (AI scene writer); expanded into the image prompt by code
   location?: string; shot?: string;  // where it happens / shot size (continuity)
+  fg?: string;                       // foreground sprite asset id (cash, smoke, confetti…) gliding close to the lens
   anchor?: [number, number];        // layered parallax: the subject's head (0..1 of the image); camera and subject zoom pivot here so the face stays in frame
   fx?: SceneFx[];                    // per-scene effects layered on top of the image (rain on the hurt, snow on the release, rays on the hope…)
   verdict?: { pass: boolean; score: number; issues: string[] };   // AI image check
@@ -50,6 +53,7 @@ export interface Style {
     layout: 'lower-left' | 'center' | 'lower-center';
     size: number; hookScale: number; reveal: 'rise' | 'blur' | 'pop' | 'type';
     case: 'upper' | 'as-is'; hotWords: string[]; alliteration: boolean; activeColor: string;
+    slam?: boolean;   // motion graphics: hook words slam in one by one on their beat; (CALL-OUTS) become stamped tags
   };
   motion: { kickZoom: number; cutPunch: number; shake: number; whipPans: boolean; letterMask: boolean; depth?: number };  // depth: living-still motion strength 0..1 (needs depth maps)
   grade: { bloom: number; grain: number; vignette: number; lightLeak: number; leakColor: string; letterbox: number; chroma: boolean };

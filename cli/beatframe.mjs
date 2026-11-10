@@ -52,7 +52,8 @@ async function setup(pg, fa, fb) {
     const p = await (await fetch('/project.json')).json(); const imgs = {};
     const ids = new Set(p.shots.filter(s => s.to >= t0 - 0.6 && s.from <= t1 + 0.1).map(s => s.img).filter(Boolean));
     const have = new Set(p.assets.map(x => x.id));
-    const want = x => { const b = x.id.split('~')[0]; if (!ids.has(b) && x.kind !== 'cover' && x.kind !== 'avatar') return false; if (x.kind === 'depth' && have.has(b + '~L0')) return false; return true; };
+    const fgs = new Set(p.scenes.filter(s => ids.has(s.id) && s.fg).map(s => s.fg));
+    const want = x => { const b = x.id.split('~')[0]; if (!ids.has(b) && !fgs.has(x.id) && x.kind !== 'cover' && x.kind !== 'avatar') return false; if (x.kind === 'depth' && have.has(b + '~L0')) return false; return true; };
     const clips = {};
     await Promise.all(p.assets.filter(x => x.url && want(x)).map(async x => { const b = await (await fetch(x.url.startsWith('file:') ? '/asset/' + encodeURIComponent(x.url.slice(5)) : x.url)).blob(); if (x.kind === 'clip') clips[x.id] = b; else imgs[x.id] = await createImageBitmap(b); }));
     window.R = new window.BeatFrame.Renderer(document.getElementById('c'), { ...p, width: W, height: H }, imgs);
