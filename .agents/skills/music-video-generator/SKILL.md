@@ -16,7 +16,7 @@ Two modes. Ask which one if the user didn't say:
 
 The engine and tools live in the repo **natelasko528/beatframe** (branch `main`). Clone it and run `npm install`. The tools are in `tools/` and the renderer CLI is `cli/beatframe.mjs`.
 
-`tools/examples/no-worries-weather/` holds a complete worked example (direction, scenes, motion, alias, lyrics). Mirror its quality.
+`tools/examples/no-worries-weather/` holds a complete worked example (direction, scenes, motion, alias, lyrics). Mirror its quality. `tools/examples/big-money/` holds the plates-era example (scenes.py prompts, assemble.py, mapping, fx/fg).
 
 Approved references:
 - **Family First v2** (Oct 2026): layered parallax plus drum jolts. The user said "much better".
@@ -31,10 +31,11 @@ Every regeneration and re-render costs the user tokens and money.
 - Use the approved defaults below and don't experiment on the user's dime.
 - Build each step once, check it before moving on, and show a 10–15 s test render before the full render.
 - Change the look, motion or layout only when the user asks.
+- Work in parallel: build the project, layers and engine work while images are still generating.
 
 ## Standing rules (from the user)
 - Keep the cinematic letterbox bars (`grade.letterbox` ~92). Never change the look, layout or style without asking first.
-- Default output is 1080p, plus a phone copy (H.264 CRF 20, `+faststart`). The chat upload limit is **400 MB**, so a 4–5 min 1080p master (~460–500 MB) can't be sent. Always send the phone copy (~250 MB), which is still 1080p. Offer 480p/720p/1440p/4K only if asked.
+- Default output is 1080p, plus a phone copy (H.264 CRF 20, `+faststart`). The chat upload limit is **400 MB**, so a 4–5 min 1080p master (~460–600 MB) can't be sent. Always send the phone copy, which is still 1080p. Offer 480p/720p/1440p/4K only if asked.
 - Nothing defaults to any past song. Every creative choice comes from this song's lyrics, mood and measured features.
 - Before quoting any cost, check the real price (provider pricing or a `get_cost` preflight). Never guess. Use the cheaper quality tier when it won't show on screen.
 - Before sending anything, render it, look at frames across the whole song, and fix problems first. Never send unverified work.
@@ -54,19 +55,22 @@ Every regeneration and re-render costs the user tokens and money.
 - Transcribe with `python3 tools/transcribe.py track.wav words.json "Artist, Title. Rap lyrics."`. This uses faster-whisper medium.en on CPU (~10 min for 3.5 min of audio).
   - If the user supplied lyrics, the transcript is **only for word timing**; the on-screen text is always their exact lyrics. Say so if they ask why you're transcribing.
 - Write a clean `lyrics.txt`. Use the user's lyrics if given, otherwise the fixed transcript. Tag sections `[Intro] [Hook]/[Chorus] [Verse 1] [Bridge] [Outro]`.
+  - Write the chorus text once; later `[Chorus]` / `[Final Chorus]` tags stay empty and reuse it.
   - Tag a distinct chant/pre-hook with its own name (e.g. `[Island]`) so its lines get their own scenes.
-  - `[Hook]`/`[Chorus]` sections reuse hook images.
 - Start the app: `npx vite build && npx vite preview --port 4175 --host 127.0.0.1` (background). Set `CHROMIUM_PATH=/opt/pw-browsers/chromium` in this sandbox.
 - Plan the edit with `node tools/plan.mjs --song track.wav --lyrics lyrics.txt --words words.json --title T --artist A --out plan.json`. It prints BPM, key, lines (check the matched counts are high) and one scene per lyric line, with shot times.
 
 ### 2. Creative direction (you are the director)
 Write `direction.json` in the `Direction` schema (`src/engine/stages.ts`):
 - concept, world, mood/grade, palette (6 hex), fonts (from `FONT_CHOICES`), lyric layout and reveal, energy, grade (letterbox 92), particles, transitions and graphics.
-- Match the song: e.g. island song → warm gold + turquoise, Caveat hot words, light-sweep transitions; heartfelt rap → golden hour + amber/red accents, Playfair hot words, film-burn transitions.
+- Match the song:
+  - island song → warm gold + turquoise, Caveat hot words, light-sweep transitions
+  - heartfelt rap → golden hour + amber/red, Playfair hot words, film-burn transitions
+  - flex/party rap → gold + money-green + magenta neon, Anton/Bebas, `pop` reveal, flash and flash-rgb transitions
 - Set `graphics.titleOnDrops: false`. The chorus lyric already boxes the title, and a second title lockup slides in clipped at the frame edge.
 
-Write the scene list (see `examples/.../scenes.json`):
-- About 30–75 images. Merge lines that share an image via `alias.json` (`{"S08": "S03"}`).
+Write the scene list:
+- About 30–75 concept images. Map every lyric line to a concept and merge lines that share an image via `alias.json` (`{"S08": "S03"}`).
 - Vary shot sizes and locations, and give the video a story arc.
 - Put the artist in ~70% of scenes. Write identity text once and reuse it in every prompt.
 - No readable text, logos or brands in images. Keep romance tasteful.
@@ -75,6 +79,8 @@ Per-scene FX in `fx.json` (`{"S07":["snow"]}`), chosen by lyric meaning:
 - `rain` / `snow` / `embers` / `dust`
 - `rays` (god rays) / `flare` (anamorphic sweep)
 - `petals` (rose petals) / `sparks`
+
+Foreground sprite per scene in `fg.json` (`{"S07": "FG_cash"}`).
 
 ### 3. Scene images: GPT Image 2.6 plates built for motion (default provider: OpenAI)
 Key: `~/.secrets/openai`. If it's dead ("invalid API key"), ask for a new one; never print it.
@@ -166,7 +172,7 @@ Regenerate only the failures.
 5. **Layer motion and jolts** are unchanged from Family First v2:
    - far 0.35× / mid 1× / subject 1.12× lateral, with subject +6.5% zoom pivoting on the head
    - one whole-frame damped jolt per clean kick or snare hit, never on hi-hats
-   - Never per-pixel warping, high-frequency shake, or shimmer.
+   - Never per-pixel warping (the old `living()` shader), high-frequency shake, or water/foliage shimmer. The user rejected these as "jittery and distorted". Without layers the renderer falls back to the shader, so always run `layers.py`.
 
 Then go to step 5.
 
@@ -233,7 +239,7 @@ Then:
   - Put transformer high-noise on cuda:0, low-noise and the VAE on cuda:1, with `AlignDevicesHook`.
   - Pass the transformer and VAE into `from_pretrained` so the scale factors are right.
   - `tools/kaggle/run_template.py` already does all of this.
-- Container restarts kill background jobs. Re-check that outputs exist before reporting; `render_chunks.py` resumes.
+- Container restarts kill background jobs. Re-check that outputs exist before reporting; `plates.py` and `render_chunks.py` resume.
 
 ## Finish
 Tell the user in a few lines:
