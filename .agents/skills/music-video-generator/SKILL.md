@@ -80,7 +80,7 @@ Per-scene FX in `fx.json` (`{"S07":["snow"]}`), chosen by lyric meaning:
 Key: `~/.secrets/openai`. If it's dead ("invalid API key"), ask for a new one; never print it.
 
 **References**
-- **Identity:** the artist's real photos, cropped to face and shoulders (Tony Mack's real photos: `bm/refs/n1–n4.jpg`), plus the 1–2 best faces from earlier videos (`r1.jpg`, `r3_ff.jpg`). Up to 5 refs.
+- **Identity:** the artist's real photos, cropped to face and shoulders (Tony Mack's real photos: `/home/claude/bm/refs/n1–n4.jpg` in this workspace; ask for new photos if they're gone), plus the 1–2 best faces from earlier videos (`r1.jpg`, `r3_ff.jpg`). Up to 5 refs.
 - **Location:** one real photo per outdoor scene, appended as the **last** ref. Source them from Wikimedia Commons:
   - Use the API `generator=search` with a User-Agent header, 2 s between requests (it rate-limits; on HTTP 429 wait about a minute).
   - Download the `iiurlwidth=1600` thumbnails.
@@ -198,7 +198,7 @@ Then:
 
 3. **Verify.**
    - `ffprobe -count_frames`: the frame count must equal `round(dur*30)`, and the duration must match the song.
-   - Motion check: phase-correlate consecutive 240-px gray frames. Within-shot motion should be smooth (median about 0.05 px). Big jumps only at cuts, transitions and drum hits, and no rapid back-and-forth flicker.
+   - Motion check: phase-correlate consecutive 240-px gray frames. Within-shot motion should be smooth (median about 0.05–0.1 px at 240 px wide; Big Money measured 0.11). Big jumps only at cuts, transitions and drum hits, and no rapid back-and-forth flicker.
    - Look at frames on both sides of each chunk seam.
    - Make a 12-frame contact sheet across the song and check that the lyrics are in time, the bars are present, faces are in frame, the images contain no text, and there are no halos around subjects.
 
