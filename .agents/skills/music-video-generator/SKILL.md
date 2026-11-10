@@ -79,6 +79,12 @@ Per-scene FX in `fx.json` (`{"S07":["snow"]}`), chosen by lyric meaning:
 ### 3. Scene images: GPT Image 2.6 plates built for motion (default provider: OpenAI)
 Key: `~/.secrets/openai`. If it's dead ("invalid API key"), ask for a new one; never print it.
 
+Alternatives, if the user picks another provider:
+- **Gemini / fal / Higgsfield** (`mcp__Higgsfield__generate_image_batch`; Higgsfield's default image model is also gpt_image_2_6; preflight `get_cost`).
+- **Canva `generate-image`**: small quota, and only thumbnails are downloadable.
+
+Clean plates and 4K need the OpenAI path.
+
 **References**
 - **Identity:** the artist's real photos, cropped to face and shoulders (Tony Mack's real photos: `/home/claude/bm/refs/n1–n4.jpg` in this workspace; ask for new photos if they're gone), plus the 1–2 best faces from earlier videos (`r1.jpg`, `r3_ff.jpg`). Up to 5 refs.
 - **Location:** one real photo per outdoor scene, appended as the **last** ref. Source them from Wikimedia Commons:
@@ -96,6 +102,8 @@ Gangster rap video energy: low angle, confident body language, hard contrast …
 Composed for multilayer parallax: man at mid-depth on a third, clear space around his silhouette, deep background, one out-of-focus foreground element at a frame edge, nothing important in the outer 10% …
 No text, no letters, no numbers, no logos, no signs, no lettering on clothing.
 ```
+- **Crop every reference photo to the face and shoulders.** Pendants, shirt prints or posters in a reference get copied into every image (a "TONY MACK" pendant once spread through a whole batch).
+- Prompts for symbol scenes are objects only, with no person anywhere.
 - Without the "NEW wide shot … not a portrait" opener, edits with refs return copies of the ref portraits.
 - **Never name landmarks or the city** (e.g. "Third Ward", "US Bank"): the model paints them as signs. Describe them instead and let the location photo carry it.
 - Gangster rap craft:
@@ -134,6 +142,11 @@ Regenerate only the failures.
    ```
    LAYER_JOBS=1 python3 tools/layers.py project.beatframe.json layers --plates splates
    ```
+   Layers:
+   - **L2 subject**: salient-object matte, so a person is never split.
+   - **L1 mid**: depth split, with the subject's footprint filled from the real clean plate.
+   - **L0 far**: the clean plate with mid objects inpainted.
+
    Needs `pip install --break-system-packages "rembg[cpu]"`. It skips scenes already split (`layers/anchors.json`), so after a rebuild it only does new ones. Contact-sheet the L2 subjects on magenta.
 4. **Motion graphics pass:**
    ```
