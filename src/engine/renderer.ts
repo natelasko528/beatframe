@@ -487,13 +487,19 @@ export class Renderer {
   private drawFg(shot: Shot, t: number) {
     const id = this.p.scenes.find(x => x.id === shot.img)?.fg, img = id ? this.imgs[id] : undefined; if (!img) return;
     const c = this.ctx, a = t - shot.from, len = Math.max(0.1, shot.to - shot.from), W = this.W, H = this.H;
-    const sc = Math.max(W / img.width, H / img.height) * 1.3, w = img.width * sc, h = img.height * sc, dir = hash(Math.round(shot.from * 100)) > 0.5 ? 1 : -1;
-    c.save(); c.globalAlpha = 0.9 * clamp(a / 0.15); (c as any).filter = `blur(${2.5 * this.u}px)`;
+    const sc = Math.max(W / img.width, H / img.height) * 1.05, w = img.width * sc, h = img.height * sc, dir = hash(Math.round(shot.from * 100)) > 0.5 ? 1 : -1;
     const fall = /cash|confetti|rain|sparks|bokeh/.test(id!), up = /sparks|smoke/.test(id!);
     const x = (W - w) / 2 - (a / len - 0.5) * W * 0.22 * dir;
-    if (fall) { const v = (up ? -0.32 : 0.38) * H, y = ((a * v) % h + h) % h; c.drawImage(img as any, x, y - h, w, h); c.drawImage(img as any, x, y, w, h); }
-    else c.drawImage(img as any, x, (H - h) / 2 + (0.5 - a / len) * H * 0.06, w, h);
-    (c as any).filter = 'none'; c.restore();
+    // draw into the scratch canvas, then cut a soft hole where the subject's face lives so the foreground frames him instead of covering him
+    const m = this.mctx; m.setTransform(1, 0, 0, 1, 0, 0); m.globalCompositeOperation = 'source-over'; m.globalAlpha = 1; m.clearRect(0, 0, W, H);
+    (m as any).filter = `blur(${2.5 * this.u}px)`;
+    if (fall) { const v = (up ? -0.32 : 0.38) * H, y = ((a * v) % h + h) % h; m.drawImage(img as any, x, y - h, w, h); m.drawImage(img as any, x, y, w, h); }
+    else m.drawImage(img as any, x, (H - h) / 2 + (0.5 - a / len) * H * 0.06, w, h);
+    (m as any).filter = 'none';
+    const an = this.p.scenes.find(x2 => x2.id === shot.img)?.anchor ?? [0.5, 0.35], hx = an[0] * W, hy = Math.max(0.3, an[1] + 0.12) * H;
+    const g = m.createRadialGradient(hx, hy, 0, hx, hy, 0.42 * W); g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(0.55, 'rgba(0,0,0,.85)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    m.globalCompositeOperation = 'destination-out'; m.fillStyle = g; m.fillRect(0, 0, W, H); m.globalCompositeOperation = 'source-over';
+    c.save(); c.globalAlpha = (/bokeh/.test(id!) ? 0.4 : 0.75) * clamp(a / 0.15); c.drawImage(this.mask, 0, 0); c.restore();
   }
   /** Beat transition into a cut: whip pan, zoom punch or RGB glitch, drawn in the first 0.22 s of the shot. */
   private transition(shot: Shot, t: number) {
@@ -503,8 +509,8 @@ export class Renderer {
     c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
     if (shot.trans === 'whip') {
       const dir = hash(Math.round(shot.from * 100)) > 0.5 ? 1 : -1, off = dir * Math.pow(e, 2) * W * 0.3;
-      c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
-      for (let i = 0; i < N; i++) { c.globalAlpha = 1 / (i + 1); c.drawImage(this.mask, off * (1 - i / N) + dir * e * W * 0.05 * i, 0); }
+      for (let i = 0; i < N; i++) { const o = off * (1 - i / N) + dir * e * W * 0.05 * i; c.globalAlpha = 1 / (i + 1);   // wraps around, so the smear never shows an empty edge
+        c.drawImage(this.mask, o, 0); c.drawImage(this.mask, o - Math.sign(o || 1) * W, 0); }
     } else if (shot.trans === 'zoom') {
       for (let i = 1; i <= N; i++) { const z = 1 + e * 0.35 * (i / N); c.globalAlpha = 0.5 / i * 2; c.drawImage(this.mask, W / 2 - (W * z) / 2, H / 2 - (H * z) / 2, W * z, H * z); }
     } else {
