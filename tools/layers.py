@@ -60,6 +60,8 @@ def feather(mask, sigma, erode=0):
 
 def split(job):
     sid, img_url, dep_url, out, plates = job
+    cached = json.load(open(f'{out}/anchors.json')) if os.path.exists(f'{out}/anchors.json') else {}
+    if sid in cached and all(os.path.exists(f'{out}/{sid}_L{i}.webp') for i in range(3)): return sid, 0.0, 0.0, cached[sid]   # already split
     hero = f'{plates}/{sid}.png' if plates else None
     src = Image.open(hero) if hero and os.path.exists(hero) else decode(img_url)          # full-res hero plate when we have one
     img = np.array(src.convert('RGB'))[..., ::-1].copy()      # BGR for cv2
@@ -106,7 +108,7 @@ if __name__ == '__main__':
     p = json.load(open(proj)); A = {a['id']: a for a in p['assets']}
     jobs = [(a['id'], a['url'], A[a['id'] + '~depth']['url'], out, plates) for a in p['assets']
             if a['kind'] == 'image' and a['id'] + '~depth' in A and (not only or a['id'] in only)]
-    with ProcessPoolExecutor(2) as ex:
+    with ProcessPoolExecutor(int(os.environ.get('LAYER_JOBS', 2))) as ex:
         anchors = {}
         for sid, n, m, an in ex.map(split, jobs): anchors[sid] = an; print(f'{sid}: subject {n:.0%}  mid+subject {m:.0%}  anchor {an}', flush=True)
     if not only:
@@ -115,4 +117,6 @@ if __name__ == '__main__':
             for i in range(3): p['assets'].append({'id': f'{sid}~L{i}', 'name': f'{sid}_L{i}', 'kind': 'layer', 'url': f'file:{sid}_L{i}.webp'})
         for sc in p['scenes']:
             if sc['id'] in anchors: sc['anchor'] = anchors[sc['id']]
+        prev = json.load(open(f'{out}/anchors.json')) if os.path.exists(f'{out}/anchors.json') else {}
+        json.dump({**prev, **anchors}, open(f'{out}/anchors.json', 'w'))
         json.dump(p, open(proj, 'w')); print('project updated:', proj)
